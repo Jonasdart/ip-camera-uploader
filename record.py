@@ -130,3 +130,4 @@ if __name__ == "__main__":
             _thread.daemon = True
             _thread.start()
             execution_threads[cam_name] = _thread
+        time.sleep(0.1)
