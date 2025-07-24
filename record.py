@@ -10,7 +10,8 @@ import camera_model
 base_dir = "shared/recs"
 
 
-def compress_video(input_path: str, output_path: str):
+def compress_video(input_path: str):
+    output_path = input_path.replace(".mp4", "_compressed_.mp4")
     cmd = [
         "ffmpeg",
         "-i",
@@ -24,6 +25,8 @@ def compress_video(input_path: str, output_path: str):
         output_path,
     ]
     subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    
+    return output_path
 
 
 def prepare_video_to_view(video_path: str):
@@ -43,7 +46,7 @@ def prepare_video_to_view(video_path: str):
         "128k",
         "-movflags",
         "+faststart",
-        video_path.replace(".mp4", "processed.mp4"),
+        video_path.replace(".mp4", "_processed_.mp4"),
     ]
     subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
 

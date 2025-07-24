@@ -22,12 +22,11 @@ def main():
             if not file.endswith(".mp4") or file.endswith("processed.mp4"):
                 continue
 
-            compress_file_path = file_full_path.replace(".mp4", "_compressed.mp4")
             thumbnail_path = file_full_path.replace(".mp4", ".jpg")
             processed_path = file_full_path.replace(".mp4", "processed.mp4")
 
             print(f"Comprimindo {file_full_path}...")
-            compress_video(file_full_path, compress_file_path)
+            compress_file_path = compress_video(file_full_path, compress_file_path)
 
             upload_file(compress_file_path, date_remote_folder_id)
             if os.path.exists(thumbnail_path):
