@@ -14,11 +14,26 @@ camera_id = st.query_params.get("cam_id", "")
 
 @st.dialog("Abrir video")
 def shown_video(video_path: str):
-    processed_video_path = video_path.replace(".mp4", "_processed_.mp4")
-    if not os.path.exists(processed_video_path):
-        with st.spinner("Gerando cópia visualizável", show_time=True):
-            prepare_video_to_view(video_path)
-    st.video(processed_video_path)
+    c_col1, c_col2 = st.columns(2, gap="large")
+    with st.spinner("Salvando...", show_time=True):
+        with open(video_path, "rb") as f:
+            c_col1.download_button(
+                label="Download",
+                data=f,
+                file_name=os.path.dirname(video_path)+".mp4",
+                mime="video/mp4",
+                icon=":material/download:",
+                type="tertiary",
+                use_container_width=True,
+            )
+    if c_col2.button(
+            "Assistir", type="primary", icon="▶️", use_container_width=True
+        ):
+        processed_video_path = video_path.replace(".mp4", "_processed_.mp4")
+        if not os.path.exists(processed_video_path):
+            with st.spinner("Gerando cópia visualizável", show_time=True):
+                prepare_video_to_view(video_path)
+        st.video(processed_video_path)
 
 
 def normalize_name(name: str):
@@ -61,19 +76,8 @@ if page == "gravacoes" and camera_name:
 
                             if os.path.exists(thumb_path):
                                 col.image(thumb_path, caption=records[index])
-                                c_col1, c_col2 = col.columns(2, gap="large")
-                                with open(video_path, "rb") as f:
-                                    c_col1.download_button(
-                                        label="Download",
-                                        data=f,
-                                        file_name=records[index],
-                                        mime="video/mp4",
-                                        icon=":material/download:",
-                                        type="tertiary",
-                                        use_container_width=True
-                                    )
-                                if c_col2.button(
-                                    "Play", type="primary", icon="▶️", key=video_path, use_container_width=True
+                                if col.button(
+                                    "Opções", type="primary", icon="▶️", key=video_path, use_container_width=True
                                 ):
                                     shown_video(video_path)
                             else:
