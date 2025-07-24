@@ -3,7 +3,7 @@ from tinydb import TinyDB, Query
 
 import drive_client
 
-db = TinyDB("db.json")
+db = TinyDB("shared/db.json")
 
 
 def normalize_name(name: str):

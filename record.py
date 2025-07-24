@@ -7,7 +7,7 @@ from typing import Dict
 
 import camera_model
 
-base_dir = "recs"
+base_dir = "shared/recs"
 
 
 def compress_video(input_path: str, output_path: str):

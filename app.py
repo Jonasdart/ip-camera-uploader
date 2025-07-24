@@ -2,10 +2,7 @@ import math
 import streamlit as st
 import os
 import camera_model
-from record import prepare_video_to_view
-
-# Banco de dados
-output_dir = "recs"
+from record import prepare_video_to_view, base_dir
 
 st.set_page_config(page_title="Gerenciador de Câmeras", layout="wide")
 
@@ -37,7 +34,7 @@ if page == "gravacoes" and camera_name:
     )
     st.title(f"🎥 Gravações da câmera: {camera_name}")
     camera_data = camera_model.get_camera_data(camera_id)
-    camera_path = os.path.join(output_dir, normalize_name(camera_name))
+    camera_path = os.path.join(base_dir, normalize_name(camera_name))
 
     if os.path.exists(camera_path):
         dates = sorted([f for f in os.listdir(camera_path)])

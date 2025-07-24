@@ -3,19 +3,30 @@ version: '3.9'
 services:
   front:
     build: .
+    image: ipcam-app
     container_name: ipcam_front
     command: streamlit run app.py --server.port=8501 --server.address=0.0.0.0
     ports:
       - "8502:8501"
     restart: always
+    volumes:
+      - shared-data:/app/shared
 
   recording:
-    build: .
+    image: ipcam-app
     container_name: ipcam_recording
     command: python record.py
     restart: always
+    volumes:
+      - shared-data:/app/shared
 
   uploading:
-    build: .
+    image: ipcam-app
     container_name: ipcam_uploading
     command: python upload.py
+    volumes:
+          - shared-data:/app/shared
+
+
+volumes:
+  shared-data:

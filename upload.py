@@ -1,16 +1,15 @@
 import datetime
 import os
 from drive_client import upload_file, create_date_path, create_camera_path
-from record import compress_video
+from record import compress_video, base_dir
 
 
 def main():
-    source_path = "recs"
     yesterday = (datetime.datetime.now() - datetime.timedelta(days=1)).date()
 
-    for camera in os.listdir(source_path):
+    for camera in os.listdir(base_dir):
         yesterday_sources_path = os.path.join(
-            source_path, camera, yesterday.isoformat()
+            base_dir, camera, yesterday.isoformat()
         )
         if not os.path.exists(yesterday_sources_path):
             continue

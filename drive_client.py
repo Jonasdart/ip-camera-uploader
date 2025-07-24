@@ -10,7 +10,7 @@ from functools import lru_cache
 
 # Caminho para seu JSON da conta de serviço
 CREDENTIALS_FILE = "client_secrets.json"
-TOKEN_PATH = "token.json"
+TOKEN_PATH = "shared/token.json"
 
 # Escopos necessários para Drive
 SCOPES = ["https://www.googleapis.com/auth/drive.file"]
