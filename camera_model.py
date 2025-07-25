@@ -11,7 +11,7 @@ def normalize_name(name: str):
 
 
 def add_camera(name: str, ip: str, user: str, passw: str, segment_duration: str, date_range: int):
-    camera_folder_id = drive_client.create_camera_path(normalize_name(name))
+    camera_folder_id = drive_client.create_camera_path(name)
     camera_collection = db.table("cameras")
     camera_collection.insert(
         {

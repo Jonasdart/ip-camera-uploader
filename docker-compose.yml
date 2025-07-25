@@ -20,10 +20,10 @@ services:
     volumes:
       - shared-data:/app/shared
 
-  uploading:
+  cleaning:
     image: ipcam-app
-    container_name: ipcam_uploading
-    command: python upload.py
+    container_name: ipcam_cleaning
+    command: python cleanup.py
     volumes:
           - shared-data:/app/shared
 

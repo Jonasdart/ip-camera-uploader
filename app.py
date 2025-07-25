@@ -2,7 +2,7 @@ import math
 import streamlit as st
 import os
 import camera_model
-from record import prepare_video_to_view, base_dir
+from record import base_dir
 
 st.set_page_config(page_title="Gerenciador de Câmeras", layout="wide")
 
@@ -14,26 +14,19 @@ camera_id = st.query_params.get("cam_id", "")
 
 @st.dialog("Abrir video")
 def shown_video(video_path: str):
-    c_col1, c_col2 = st.columns(2, gap="large")
-    with st.spinner("Salvando...", show_time=True):
-        with open(video_path, "rb") as f:
-            c_col1.download_button(
-                label="Download",
-                data=f,
-                file_name=os.path.dirname(video_path)+".mp4",
-                mime="video/mp4",
-                icon=":material/download:",
-                type="tertiary",
-                use_container_width=True,
-            )
-    if c_col2.button(
-            "Assistir", type="primary", icon="▶️", use_container_width=True
-        ):
-        processed_video_path = video_path.replace(".mp4", "_processed_.mp4")
-        if not os.path.exists(processed_video_path):
-            with st.spinner("Gerando cópia visualizável", show_time=True):
-                prepare_video_to_view(video_path)
-        st.video(processed_video_path)
+    st.video(video_path)
+    if st.button("ver opções de download", type="primary", use_container_width=True,):
+        with st.spinner("Carregando...", show_time=True):
+            with open(video_path, "rb") as f:
+                st.download_button(
+                    label="Arquivo completo",
+                    data=f,
+                    file_name=os.path.dirname(video_path)+".mp4",
+                    mime="video/mp4",
+                    icon=":material/download:",
+                    type="tertiary",
+                    use_container_width=True,
+                )
 
 
 def normalize_name(name: str):
@@ -59,7 +52,7 @@ if page == "gravacoes" and camera_name:
                 records = sorted(
                     [f for f in os.listdir(os.path.join(camera_path, subpath))]
                 )
-                records = [record for record in records if not record.endswith("_.mp4") and not record.endswith(".jpg")]
+                records = [record for record in records if record.endswith("_processed_.mp4")]
 
                 with st.expander(f"🕒 {subpath} - {len(records)} Gravações"):
                     rows = [st.columns(3, border=True) for _ in range(math.ceil(len(records) / 3))]
@@ -72,7 +65,7 @@ if page == "gravacoes" and camera_name:
                             video_path = os.path.join(
                                 camera_path, subpath, records[index]
                             )
-                            thumb_path = video_path.replace(".mp4", ".jpg")
+                            thumb_path = video_path.replace("_processed_.mp4", ".jpg")
 
                             if os.path.exists(thumb_path):
                                 col.image(thumb_path, caption=records[index])

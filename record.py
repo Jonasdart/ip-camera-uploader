@@ -3,11 +3,58 @@ import os
 import subprocess
 import threading
 import time
-from typing import Dict
+from typing import Dict, Optional
+from pathlib import Path
 
 import camera_model
+from drive_client import create_camera_path, create_date_path, upload_file
 
 base_dir = "shared/recs"
+
+
+def upload_video(
+    video_path: str,
+    camera: str,
+    to_compress: Optional[bool] = False,
+    to_exclude: Optional[bool] = False,
+    suffix_to_exclude: Optional[list] = ["_compressed_.mp4"],
+):
+    if not os.path.exists(video_path):
+        print("Video nao encontrado")
+        return
+
+    date_path_prefix = list(Path(video_path).parts)[-2]
+    camera_remote_folder_id = create_camera_path(camera)
+    date_remote_folder_id = create_date_path(camera_remote_folder_id, date_path_prefix)
+    
+    file_to_upload = video_path
+    if to_compress:
+        print(f"Comprimindo {video_path}...")
+        file_to_upload = compress_video(video_path)
+
+    upload_file(file_to_upload, date_remote_folder_id)
+
+    thumbnail_path = video_path.replace(".mp4", ".jpg")
+    if os.path.exists(thumbnail_path):
+        upload_file(thumbnail_path, date_remote_folder_id)
+
+    if to_exclude:
+        exclude_video_files(video_path, suffix_to_exclude)
+
+
+def exclude_video_files(video_path: str, files_suffix: Optional[list] = []):
+    if video_path.endswith("_.mp4"):
+        print("Only originals paths is allowed")
+        return
+
+    exclude_list = [video_path]
+    exclude_list.extend(
+        [video_path.replace(".mp4", suffix) for suffix in files_suffix]
+    )
+    for f in exclude_list:
+        if os.path.exists(f):
+            os.remove(f)
+            print(f"Arquivo removido: {f}")
 
 
 def compress_video(input_path: str):
@@ -25,7 +72,7 @@ def compress_video(input_path: str):
         output_path,
     ]
     subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
-    
+
     return output_path
 
 
@@ -48,7 +95,7 @@ def prepare_video_to_view(video_path: str):
         "+faststart",
         video_path.replace(".mp4", "_processed_.mp4"),
     ]
-    subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
 
 
 def generate_thumbnail(video_path):
@@ -72,15 +119,14 @@ def generate_thumbnail(video_path):
 def start_recording(rtsp_url, camera_name):
     now = datetime.datetime.now()
 
-    output_dir = (
-        f"{base_dir}/{camera_model.normalize_name(camera_name)}/{now.date().isoformat()}"
-    )
+    output_dir = f"{base_dir}/{camera_model.normalize_name(camera_name)}/{now.date().isoformat()}"
     os.makedirs(output_dir, exist_ok=True)
 
     filename = f"{camera_model.normalize_name(camera_name)}_{now.isoformat(timespec='seconds')}.mp4"
+    output_path = os.path.join(output_dir, filename)
 
     print(f"🎥 Gravando: {filename}")
-    print(os.path.join(output_dir, filename))
+    print(output_path)
 
     cmd = [
         "ffmpeg",
@@ -96,11 +142,11 @@ def start_recording(rtsp_url, camera_name):
         "aac",
         "-strict",
         "-2",
-        os.path.join(output_dir, filename),
+        output_path,
     ]
     subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
 
-    return os.path.join(output_dir, filename)
+    return output_path
 
 
 def start_monitoring(camera):
@@ -114,6 +160,8 @@ def start_monitoring(camera):
         print(f"🔌 Conectando à câmera {name} ONVIF em {ip}...")
         filename = start_recording(rtsp, name)
         generate_thumbnail(filename)
+        prepare_video_to_view(filename)
+        upload_video(filename, name, to_compress=False, to_exclude=True)
         time.sleep(0.1)
     except Exception as e:
         print(f"❌ Erro ao conectar à câmera {name}: {e}")
@@ -133,4 +181,4 @@ if __name__ == "__main__":
             _thread.daemon = True
             _thread.start()
             execution_threads[cam_name] = _thread
-        time.sleep(0.1)
+        time.sleep(0.5)
