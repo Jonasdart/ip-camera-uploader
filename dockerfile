@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copia os arquivos da aplicação
-COPY app.py camera_model.py drive_client.py record.py upload.py client_secrets.json requirements.txt /app/
+COPY app.py camera_model.py drive_client.py record.py cleanup.py client_secrets.json requirements.txt /app/
 
 # Instala dependências do Python
 RUN pip install --upgrade pip
