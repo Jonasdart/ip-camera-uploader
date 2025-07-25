@@ -9,7 +9,7 @@ from google.oauth2.credentials import Credentials
 from functools import lru_cache
 
 # Caminho para seu JSON da conta de serviço
-CREDENTIALS_FILE = "client_secrets.json"
+CREDENTIALS_FILE = "shared/client_secrets.json"
 TOKEN_PATH = "shared/token.json"
 
 # Escopos necessários para Drive
