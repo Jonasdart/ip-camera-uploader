@@ -1,17 +1,20 @@
 import datetime
 import os
 import subprocess
-import threading
 import time
 from typing import Any, Callable, Dict, Iterable, Mapping, Optional
 from pathlib import Path
+from concurrent.futures import ProcessPoolExecutor, Future
+from queue import Queue
+from threading import Thread
 
 import camera_model
 from drive_client import create_camera_path, create_date_path, upload_file
 from utils import retry
 
 base_dir = "shared/recs"
-execution_threads: Dict[str, threading.Thread] = {}
+upload_queue = Queue()
+execution_futures: Dict[int, Future] = {}
 
 
 def start_async(
@@ -19,24 +22,21 @@ def start_async(
     name: str = None,
     args: Iterable[Any] = (),
     kwargs: Mapping[str, Any] | None = None,
-) -> threading.Thread:
-    _thread = threading.Thread(
-        target=target, args=args, kwargs=kwargs, name=name, daemon=True
+) -> Thread:
+    thread = Thread(
+        target=target, args=args, kwargs=kwargs or {}, name=name, daemon=True
     )
-    _thread.start()
+    thread.start()
+    return thread
 
-    return _thread
 
-
-def thread_is_alive(cam_id: int) -> bool:
-    is_alive = False
+def recording(cam_id: int) -> bool:
+    is_recording = False
     try:
-        is_alive = execution_threads[cam_id].is_alive()
+        is_recording = execution_futures[cam_id].running()
     except KeyError:
         pass
-
-    camera_model.set_status(cam_id, is_alive)
-    return is_alive
+    return is_recording
 
 
 @retry(0.5)
@@ -67,6 +67,44 @@ def upload_video(
         exclude_video_files(video_path, suffix_to_exclude)
 
 
+@retry(0.5)
+def upload_video_from_queue():
+    while True:
+        item = upload_queue.get()
+        if item is None:
+            break
+
+        (
+            video_path,
+            camera_id,
+            camera_name,
+            to_compress,
+            to_exclude,
+        ) = item
+
+        if not os.path.exists(video_path):
+            print("Video nao encontrado")
+            continue
+
+        date_path_prefix = list(Path(video_path).parts)[-2]
+        camera_remote_folder_id = create_camera_path(camera_id, camera_name)
+        date_remote_folder_id = create_date_path(
+            camera_remote_folder_id, date_path_prefix
+        )
+
+        file_to_upload = video_path
+        if to_compress:
+            print(f"Comprimindo {video_path}...")
+            file_to_upload = compress_video(video_path)
+
+        upload_file(file_to_upload, date_remote_folder_id)
+
+        if to_exclude:
+            exclude_video_files(video_path, ["_compressed_.mp4"])
+
+        upload_queue.task_done()
+
+
 def exclude_video_files(video_path: str, files_suffix: Optional[list] = []):
     if video_path.endswith("_.mp4"):
         print("Only originals paths is allowed")
@@ -95,7 +133,6 @@ def compress_video(input_path: str):
         output_path,
     ]
     subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
-
     return output_path
 
 
@@ -123,7 +160,7 @@ def generate_thumbnail(video_path):
     thumb_path = video_path.replace(".mp4", ".jpg")
     thumb_cmd = [
         "ffmpeg",
-        "-y",  # overwrite
+        "-y",
         "-ss",
         "00:00:01",
         "-i",
@@ -137,7 +174,7 @@ def generate_thumbnail(video_path):
     subprocess.run(thumb_cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
 
 
-def start_recording(rtsp_url, camera_name):
+def start_recording(rtsp_url, camera_name, segment_duration="00:01:00"):
     now = datetime.datetime.now()
 
     output_dir = f"{base_dir}/{camera_model.normalize_name(camera_name)}/{now.date().isoformat()}"
@@ -156,7 +193,7 @@ def start_recording(rtsp_url, camera_name):
         "-i",
         rtsp_url,
         "-t",
-        cam.get("segment_duration", "00:01:00"),
+        segment_duration,
         "-vcodec",
         "copy",
         "-acodec",
@@ -177,44 +214,59 @@ def start_monitoring(camera: dict, camera_id: int):
     name = camera.get("name", ip)
     rtsp = f"rtsp://{user}:{passw}@{ip}/stream"
 
-    filename = start_recording(rtsp, name)
+    filename = start_recording(rtsp, name, camera.get("segment_duration", "00:01:00"))
     generate_thumbnail(filename)
-    # prepare_video_to_view(filename)
 
-    start_async(
-        target=upload_video,
-        args=(
-            filename,
-            camera_id,
-            name,
-        ),
-        kwargs={"to_compress": False, "to_exclude": True},
-    )
+    upload_queue.put((filename, camera_id, name, False, True))
     time.sleep(0.1)
+
+
+def on_monitoring_done(cam_id):
+    def callback(future):
+        try:
+            future.result()  # para capturar exceções, se houver
+        except Exception as e:
+            print(f"⚠️ Execução da câmera {cam_id} falhou: {e}")
+        finally:
+            camera_model.set_status(cam_id, False)
+            # Reagendar nova execução (loop via callback)
+            schedule_camera(cam_id)
+
+    return callback
+
+
+def schedule_camera(camera_id: int):
+    camera_data = camera_model.get_camera_data(camera_id)
+    if camera_data is None:
+        return
+    if recording(camera_id):
+        return
+    camera_name = camera_model.normalize_name(camera_data["name"])
+    print(f"🔁 Iniciando monitoramento para {camera_name}")
+    future = executor.submit(start_monitoring, camera_data, camera_id)
+    execution_futures[camera_id] = future
+    camera_model.set_status(camera_id, True)
+    future.add_done_callback(on_monitoring_done(camera_id))
+
+
+def init_all_monitoring():
+    for camera in camera_model.list_cameras():
+        schedule_camera(camera.doc_id)
 
 
 if __name__ == "__main__":
     try:
-        while True:
-            for cam in camera_model.list_cameras():
-                cam_id = cam.doc_id
-                cam_name = camera_model.normalize_name(cam["name"])
-                if thread_is_alive(cam_id):
-                    continue
-                try:
-                    print(f"🔌 Conectando à câmera {cam_name} ONVIF em {cam['ip']}...")
-                    _thread = start_async(
-                        target=start_monitoring,
-                        args=(
-                            cam,
-                            cam_id,
-                        ),
-                        name=cam_name,
-                    )
-                    execution_threads[cam.doc_id] = _thread
-                except Exception as e:
-                    print(f"❌ Erro ao conectar à câmera {cam_name}: {e}")
-            time.sleep(0.5)
+        start_async(upload_video_from_queue)
+
+        # Inicia os monitoramentos
+        with ProcessPoolExecutor(max_workers=2) as exec_:
+            global executor
+            executor = exec_
+            init_all_monitoring()
+
+            while True:
+                time.sleep(3600)
     finally:
+        upload_queue.put(None)
         for cam in camera_model.list_cameras():
             camera_model.set_status(cam.doc_id, False)
