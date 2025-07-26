@@ -11,6 +11,8 @@ services:
     restart: always
     volumes:
       - shared-data:/app/shared
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
 
   recording:
     image: ipcam-app
@@ -19,13 +21,17 @@ services:
     restart: always
     volumes:
       - shared-data:/app/shared
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
 
   cleaning:
     image: ipcam-app
     container_name: ipcam_cleaning
     command: python cleanup.py
     volumes:
-          - shared-data:/app/shared
+      - shared-data:/app/shared
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
 
 
 volumes:
