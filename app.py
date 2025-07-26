@@ -21,7 +21,7 @@ def shown_video(video_path: str):
                 st.download_button(
                     label="Arquivo completo",
                     data=f,
-                    file_name=os.path.dirname(video_path)+".mp4",
+                    file_name=os.path.split(video_path)[-1],
                     mime="video/mp4",
                     icon=":material/download:",
                     type="tertiary",
