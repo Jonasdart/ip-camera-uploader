@@ -54,27 +54,32 @@ if page == "gravacoes" and camera_name:
                             )
 
                             col.image(thumb_path, caption=records[index])
-                            video_path = os.path.split(thumb_path)[-1].replace(
+                            video_filename = os.path.split(records[index])[-1].replace(
                                 ".jpg", ".mp4"
                             )
-                            col.link_button(
-                                "Link do drive",
-                                get_video_url(
-                                    video_path,
-                                    subpath,
-                                    camera_data["camera_folder_id"],
-                                ),
-                                use_container_width=True,
-                                type="primary",
-                                icon="▶️",
+                            video_url = get_video_url(
+                                video_filename,
+                                subpath,
+                                camera_data["uri"],
                             )
+                            print(video_url)
+                            if video_url:
+                                col.link_button(
+                                    "Link do drive",
+                                    video_url,
+                                    use_container_width=True,
+                                    type="primary",
+                                    icon="▶️",
+                                )
+                            else:
+                                col.warning("Video não encontrado no drive!")
                             index += 1
     else:
         st.info("Nenhuma gravação encontrada localmente.")
 
     st.markdown("---")
     st.markdown(
-        f"📁 [Ver gravações antigas no Google Drive](https://drive.google.com/drive/u/1/folders/{camera_data['camera_folder_id']})",
+        f"📁 [Ver gravações antigas no Google Drive](https://drive.google.com/drive/u/1/folders/{camera_data['uri']})",
         unsafe_allow_html=True,
     )
 else:
@@ -106,6 +111,7 @@ else:
     cameras = camera_model.list_cameras()
     if cameras:
         for cam in cameras:
+            cam_id = cam.doc_id
             col1, col2 = st.columns([6, 1])
             with col1:
                 st.markdown(f"**{cam['name']}** — {cam['ip']}")
@@ -121,8 +127,12 @@ else:
                 c_col2.button(
                     "📂",
                     key="gravacoes_" + cam["name"],
-                    on_click=lambda n=cam["name"]: st.query_params.from_dict(
-                        {"pagina": "gravacoes", "cam": n, "cam_id": cam.doc_id}
+                    on_click=lambda cam_data=cam: st.query_params.from_dict(
+                        {
+                            "pagina": "gravacoes",
+                            "cam": cam_data["name"],
+                            "cam_id": cam_data.doc_id,
+                        }
                     ),
                 )
     else:

@@ -24,13 +24,13 @@ def add_camera(
             "date_range": date_range,
         }
     )
-    camera_uri = drive_client.create_camera_path(camera_id)
+    camera_uri = drive_client.create_camera_path(camera_id, name)
     update_camera_uri(camera_id, camera_uri)
 
 
 def update_camera_uri(camera_id: int, uri: str):
     camera_collection = db.table("cameras")
-    camera_collection.update({"recording": uri}, doc_ids=[camera_id])
+    camera_collection.update({"uri": uri}, doc_ids=[camera_id])
 
 
 def list_cameras() -> List[dict]:

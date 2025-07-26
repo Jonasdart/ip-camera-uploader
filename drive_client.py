@@ -9,6 +9,8 @@ from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from typing import Union
 
+from utils import retry
+
 # Caminho para seu JSON da conta de serviço
 CREDENTIALS_FILE = "shared/client_secrets.json"
 TOKEN_PATH = "shared/token.json"
@@ -46,7 +48,7 @@ def __get_or_create_subfolder(parent_folder_id: str, subfolder_name: str) -> str
     folders = response.get("files", [])
 
     if folders:
-        return folders[0]["id"]  # Já existe
+        return folders[0]["id"]
     else:
         # Criar nova pasta
         metadata = {
@@ -59,22 +61,25 @@ def __get_or_create_subfolder(parent_folder_id: str, subfolder_name: str) -> str
         return folder["id"]
 
 
-def create_camera_path(camera_id: int) -> str:
-    camera_uri = __get_or_create_subfolder(FOLDER_ID, camera_id)
+@lru_cache(128)
+def create_camera_path(camera_id: int, camera_name) -> str:
+    camera_uri = __get_or_create_subfolder(FOLDER_ID, camera_name)
     camera_model.update_camera_uri(camera_id, camera_uri)
     return camera_uri
 
 
-def create_date_path(camera_folder_id: str, record_date: Union[str, date]) -> str:
+@lru_cache(128)
+def create_date_path(camera_uri: str, record_date: Union[str, date]) -> str:
     if isinstance(record_date, date):
         record_date = record_date.isoformat()
-    return __get_or_create_subfolder(camera_folder_id, record_date)
+    return __get_or_create_subfolder(camera_uri, record_date)
 
 
+@retry(0.5)
 def upload_file(filepath, folder_id):
     service = authenticate()
 
-    filename = os.path.basename(filepath)
+    filename = os.path.split(filepath)[-1]
     file_metadata = {"name": filename, "parents": [folder_id]}
     media = MediaFileUpload(filepath, resumable=True)
     file = (
@@ -87,13 +92,17 @@ def upload_file(filepath, folder_id):
     return file.get("id")
 
 
-def get_video_url(filename, date_path, camera_uri):
+def get_video_url(filename, date_path, camera_uri) -> Union[str, None]:
     service = authenticate()
 
+    print(filename, date_path, camera_uri, "To na linha 97 drive_client")
     subfolder_id = create_date_path(camera_uri, date_path)
     query = f"name = '{filename}' and '{subfolder_id}' in parents and trashed = false"
 
     response = service.files().list(q=query, fields="files(id, name)").execute()
     folders = response.get("files", [])
 
-    return f"https://drive.google.com/file/d/{folders[0]['id']}/view?usp=drive_link"
+    if folders:
+        return f"https://drive.google.com/file/d/{folders[0]['id']}/view?usp=drive_link"
+
+    return None

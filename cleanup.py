@@ -31,10 +31,11 @@ def main():
 
                 upload_video(
                     file_full_path,
-                    camera["name"],
+                    camera.doc_id,
                     to_exclude=True,
                     suffix_to_exclude=["_processed_.mp4", "_compressed_.mp4", ".jpg"],
                 )
+            os.rmdir(day_path)
 
 
 if __name__ == "__main__":

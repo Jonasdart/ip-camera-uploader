@@ -3,14 +3,29 @@ import os
 import subprocess
 import threading
 import time
-from typing import Dict, Optional
+from typing import Any, Callable, Dict, Iterable, Mapping, Optional
 from pathlib import Path
 
 import camera_model
 from drive_client import create_camera_path, create_date_path, upload_file
+from utils import retry
 
 base_dir = "shared/recs"
 execution_threads: Dict[str, threading.Thread] = {}
+
+
+def start_async(
+    target: Callable,
+    name: str = None,
+    args: Iterable[Any] = (),
+    kwargs: Mapping[str, Any] | None = None,
+) -> threading.Thread:
+    _thread = threading.Thread(
+        target=target, args=args, kwargs=kwargs, name=name, daemon=True
+    )
+    _thread.start()
+
+    return _thread
 
 
 def thread_is_alive(cam_id: int) -> bool:
@@ -24,9 +39,11 @@ def thread_is_alive(cam_id: int) -> bool:
     return is_alive
 
 
+@retry(0.5)
 def upload_video(
     video_path: str,
-    camera: dict,
+    camera_id: int,
+    camera_name: str,
     to_compress: Optional[bool] = False,
     to_exclude: Optional[bool] = False,
     suffix_to_exclude: Optional[list] = ["_compressed_.mp4"],
@@ -36,7 +53,7 @@ def upload_video(
         return
 
     date_path_prefix = list(Path(video_path).parts)[-2]
-    camera_remote_folder_id = create_camera_path(camera.doc_id)
+    camera_remote_folder_id = create_camera_path(camera_id, camera_name)
     date_remote_folder_id = create_date_path(camera_remote_folder_id, date_path_prefix)
 
     file_to_upload = video_path
@@ -153,7 +170,7 @@ def start_recording(rtsp_url, camera_name):
     return output_path
 
 
-def start_monitoring(camera):
+def start_monitoring(camera: dict, camera_id: int):
     ip = camera.get("ip")
     user = camera.get("user")
     passw = camera.get("passw")
@@ -163,7 +180,16 @@ def start_monitoring(camera):
     filename = start_recording(rtsp, name)
     generate_thumbnail(filename)
     # prepare_video_to_view(filename)
-    upload_video(filename, camera, to_compress=False, to_exclude=True)
+
+    start_async(
+        target=upload_video,
+        args=(
+            filename,
+            camera_id,
+            name,
+        ),
+        kwargs={"to_compress": False, "to_exclude": True},
+    )
     time.sleep(0.1)
 
 
@@ -171,16 +197,20 @@ if __name__ == "__main__":
     try:
         while True:
             for cam in camera_model.list_cameras():
+                cam_id = cam.doc_id
                 cam_name = camera_model.normalize_name(cam["name"])
-                if thread_is_alive(cam.doc_id):
+                if thread_is_alive(cam_id):
                     continue
                 try:
                     print(f"🔌 Conectando à câmera {cam_name} ONVIF em {cam['ip']}...")
-                    _thread = threading.Thread(
-                        target=start_monitoring, args=(cam,), name=cam_name
+                    _thread = start_async(
+                        target=start_monitoring,
+                        args=(
+                            cam,
+                            cam_id,
+                        ),
+                        name=cam_name,
                     )
-                    _thread.daemon = True
-                    _thread.start()
                     execution_threads[cam.doc_id] = _thread
                 except Exception as e:
                     print(f"❌ Erro ao conectar à câmera {cam_name}: {e}")
