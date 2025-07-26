@@ -1,12 +1,13 @@
-from datetime import date
+import camera_model
 import os
-from typing import Union
+from datetime import date
+from functools import lru_cache
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
-from functools import lru_cache
+from typing import Union
 
 # Caminho para seu JSON da conta de serviço
 CREDENTIALS_FILE = "shared/client_secrets.json"
@@ -33,7 +34,7 @@ def authenticate():
             creds = flow.run_local_server(port=0)
         with open(TOKEN_PATH, "w") as token_file:
             token_file.write(creds.to_json())
-            
+
     return build("drive", "v3", credentials=creds)
 
 
@@ -42,24 +43,26 @@ def __get_or_create_subfolder(parent_folder_id: str, subfolder_name: str) -> str
 
     query = f"name = '{subfolder_name}' and mimeType = 'application/vnd.google-apps.folder' and '{parent_folder_id}' in parents and trashed = false"
     response = service.files().list(q=query, fields="files(id, name)").execute()
-    folders = response.get('files', [])
+    folders = response.get("files", [])
 
     if folders:
-        return folders[0]['id']  # Já existe
+        return folders[0]["id"]  # Já existe
     else:
         # Criar nova pasta
         metadata = {
-            'name': subfolder_name,
-            'mimeType': 'application/vnd.google-apps.folder',
-            'parents': [parent_folder_id]
+            "name": subfolder_name,
+            "mimeType": "application/vnd.google-apps.folder",
+            "parents": [parent_folder_id],
         }
-        folder = service.files().create(body=metadata, fields='id').execute()
-        print(f'Criada pasta: {subfolder_name}')
-        return folder['id']
-    
+        folder = service.files().create(body=metadata, fields="id").execute()
+        print(f"Criada pasta: {subfolder_name}")
+        return folder["id"]
 
-def create_camera_path(camera_id: str) -> str:
-    return __get_or_create_subfolder(FOLDER_ID, camera_id)
+
+def create_camera_path(camera_id: int) -> str:
+    camera_uri = __get_or_create_subfolder(FOLDER_ID, camera_id)
+    camera_model.update_camera_uri(camera_id, camera_uri)
+    return camera_uri
 
 
 def create_date_path(camera_folder_id: str, record_date: Union[str, date]) -> str:
@@ -80,7 +83,7 @@ def upload_file(filepath, folder_id):
         .execute()
     )
     print(f'Upload concluído: {filename} (ID: {file.get("id")})')
-    
+
     return file.get("id")
 
 
@@ -91,6 +94,6 @@ def get_video_url(filename, date_path, camera_uri):
     query = f"name = '{filename}' and '{subfolder_id}' in parents and trashed = false"
 
     response = service.files().list(q=query, fields="files(id, name)").execute()
-    folders = response.get('files', [])
+    folders = response.get("files", [])
 
     return f"https://drive.google.com/file/d/{folders[0]['id']}/view?usp=drive_link"

@@ -13,9 +13,8 @@ def normalize_name(name: str):
 def add_camera(
     name: str, ip: str, user: str, passw: str, segment_duration: str, date_range: int
 ):
-    camera_folder_id = drive_client.create_camera_path(name)
     camera_collection = db.table("cameras")
-    camera_collection.insert(
+    camera_id = camera_collection.insert(
         {
             "name": name,
             "ip": ip,
@@ -23,9 +22,15 @@ def add_camera(
             "passw": passw,
             "segment_duration": segment_duration,
             "date_range": date_range,
-            "camera_folder_id": camera_folder_id,
         }
     )
+    camera_uri = drive_client.create_camera_path(camera_id)
+    update_camera_uri(camera_id, camera_uri)
+
+
+def update_camera_uri(camera_id: int, uri: str):
+    camera_collection = db.table("cameras")
+    camera_collection.update({"recording": uri}, doc_ids=[camera_id])
 
 
 def list_cameras() -> List[dict]:

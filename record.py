@@ -26,7 +26,7 @@ def thread_is_alive(cam_id: int) -> bool:
 
 def upload_video(
     video_path: str,
-    camera: str,
+    camera: dict,
     to_compress: Optional[bool] = False,
     to_exclude: Optional[bool] = False,
     suffix_to_exclude: Optional[list] = ["_compressed_.mp4"],
@@ -36,7 +36,7 @@ def upload_video(
         return
 
     date_path_prefix = list(Path(video_path).parts)[-2]
-    camera_remote_folder_id = create_camera_path(camera)
+    camera_remote_folder_id = create_camera_path(camera.doc_id)
     date_remote_folder_id = create_date_path(camera_remote_folder_id, date_path_prefix)
 
     file_to_upload = video_path
@@ -163,7 +163,7 @@ def start_monitoring(camera):
     filename = start_recording(rtsp, name)
     generate_thumbnail(filename)
     # prepare_video_to_view(filename)
-    upload_video(filename, name, to_compress=False, to_exclude=True)
+    upload_video(filename, camera, to_compress=False, to_exclude=True)
     time.sleep(0.1)
 
 
