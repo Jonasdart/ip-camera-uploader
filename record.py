@@ -17,19 +17,6 @@ upload_queue = Queue()
 execution_futures: Dict[int, Future] = {}
 
 
-def start_async(
-    target: Callable,
-    name: str = None,
-    args: Iterable[Any] = (),
-    kwargs: Mapping[str, Any] | None = None,
-) -> Thread:
-    thread = Thread(
-        target=target, args=args, kwargs=kwargs or {}, name=name, daemon=True
-    )
-    thread.start()
-    return thread
-
-
 def recording(cam_id: int) -> bool:
     is_recording = False
     try:
@@ -67,42 +54,35 @@ def upload_video(
         exclude_video_files(video_path, suffix_to_exclude)
 
 
-@retry(0.5)
 def upload_video_from_queue():
-    while True:
-        item = upload_queue.get()
-        if item is None:
-            break
+    item = upload_queue.get()
+    (
+        video_path,
+        camera_id,
+        camera_name,
+        to_compress,
+        to_exclude,
+    ) = item
 
-        (
-            video_path,
-            camera_id,
-            camera_name,
-            to_compress,
-            to_exclude,
-        ) = item
-
-        if not os.path.exists(video_path):
-            print("Video nao encontrado")
-            continue
-
-        date_path_prefix = list(Path(video_path).parts)[-2]
-        camera_remote_folder_id = create_camera_path(camera_id, camera_name)
-        date_remote_folder_id = create_date_path(
-            camera_remote_folder_id, date_path_prefix
-        )
-
-        file_to_upload = video_path
-        if to_compress:
-            print(f"Comprimindo {video_path}...")
-            file_to_upload = compress_video(video_path)
-
-        upload_file(file_to_upload, date_remote_folder_id)
-
-        if to_exclude:
-            exclude_video_files(video_path, ["_compressed_.mp4"])
-
+    if not os.path.exists(video_path):
         upload_queue.task_done()
+    
+    date_path_prefix = list(Path(video_path).parts)[-2]
+    camera_remote_folder_id = create_camera_path(camera_id, camera_name)
+    date_remote_folder_id = create_date_path(camera_remote_folder_id, date_path_prefix)
+
+    file_to_upload = video_path
+    if to_compress:
+        print(f"Comprimindo {video_path}...")
+        file_to_upload = compress_video(video_path)
+
+    upload_file(file_to_upload, date_remote_folder_id)
+    generate_thumbnail(video_path)
+
+    if to_exclude:
+        exclude_video_files(video_path, ["_compressed_.mp4"])
+
+    upload_queue.task_done()
 
 
 def exclude_video_files(video_path: str, files_suffix: Optional[list] = []):
@@ -215,22 +195,21 @@ def start_monitoring(camera: dict, camera_id: int):
     rtsp = f"rtsp://{user}:{passw}@{ip}/stream"
 
     filename = start_recording(rtsp, name, camera.get("segment_duration", "00:01:00"))
-    generate_thumbnail(filename)
-
-    upload_queue.put((filename, camera_id, name, False, True))
-    time.sleep(0.1)
+    
+    return filename
 
 
-def on_monitoring_done(cam_id):
-    def callback(future):
+def on_monitoring_done(camera_id, camera_name):
+    def callback(future: Future):
         try:
-            future.result()  # para capturar exceções, se houver
+            filename = future.result()
+            upload_queue.put((filename, camera_id, camera_name, False, True))
         except Exception as e:
-            print(f"⚠️ Execução da câmera {cam_id} falhou: {e}")
+            print(f"⚠️ Execução da câmera {camera_id} falhou: {e}")
         finally:
-            camera_model.set_status(cam_id, False)
+            camera_model.set_status(camera_id, False)
             # Reagendar nova execução (loop via callback)
-            schedule_camera(cam_id)
+            schedule_camera(camera_id)
 
     return callback
 
@@ -242,11 +221,13 @@ def schedule_camera(camera_id: int):
     if recording(camera_id):
         return
     camera_name = camera_model.normalize_name(camera_data["name"])
+
     print(f"🔁 Iniciando monitoramento para {camera_name}")
     future = executor.submit(start_monitoring, camera_data, camera_id)
+    future.add_done_callback(on_monitoring_done(camera_id, camera_name))
     execution_futures[camera_id] = future
+
     camera_model.set_status(camera_id, True)
-    future.add_done_callback(on_monitoring_done(camera_id))
 
 
 def init_all_monitoring():
@@ -256,12 +237,13 @@ def init_all_monitoring():
 
 if __name__ == "__main__":
     try:
-        start_async(upload_video_from_queue)
-
-        # Inicia os monitoramentos
         with ProcessPoolExecutor(max_workers=2) as exec_:
             global executor
             executor = exec_
+            thread = Thread(
+                target=upload_video_from_queue, daemon=True
+            )
+            thread.start()
             init_all_monitoring()
 
             while True:
