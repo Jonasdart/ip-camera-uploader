@@ -34,10 +34,6 @@ def upload_video(
 
     upload_file(file_to_upload, date_remote_folder_id)
 
-    thumbnail_path = video_path.replace(".mp4", ".jpg")
-    if os.path.exists(thumbnail_path):
-        upload_file(thumbnail_path, date_remote_folder_id)
-
     if to_exclude:
         exclude_video_files(video_path, suffix_to_exclude)
 
@@ -152,15 +148,11 @@ def start_monitoring(camera):
     name = camera.get("name", ip)
     rtsp = f"rtsp://{user}:{passw}@{ip}/stream"
 
-    try:
-        print(f"🔌 Conectando à câmera {name} ONVIF em {ip}...")
-        filename = start_recording(rtsp, name)
-        generate_thumbnail(filename)
-        prepare_video_to_view(filename)
-        upload_video(filename, name, to_compress=False, to_exclude=True)
-        time.sleep(0.1)
-    except Exception as e:
-        print(f"❌ Erro ao conectar à câmera {name}: {e}")
+    filename = start_recording(rtsp, name)
+    generate_thumbnail(filename)
+    prepare_video_to_view(filename)
+    upload_video(filename, name, to_compress=False, to_exclude=True)
+    time.sleep(0.1)
 
 
 if __name__ == "__main__":
@@ -170,11 +162,14 @@ if __name__ == "__main__":
             cam_name = camera_model.normalize_name(cam["name"])
             if cam_name in execution_threads and execution_threads[cam_name].is_alive():
                 continue
-
-            _thread = threading.Thread(
-                target=start_monitoring, args=(cam,), name=cam_name
-            )
-            _thread.daemon = True
-            _thread.start()
-            execution_threads[cam_name] = _thread
+            try:
+                print(f"🔌 Conectando à câmera {cam_name} ONVIF em {cam['ip']}...")
+                _thread = threading.Thread(
+                    target=start_monitoring, args=(cam,), name=cam_name
+                )
+                _thread.daemon = True
+                _thread.start()
+                execution_threads[cam_name] = _thread
+            except Exception as e:
+                print(f"❌ Erro ao conectar à câmera {cam_name}: {e}")
         time.sleep(0.5)
