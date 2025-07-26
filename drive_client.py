@@ -43,7 +43,7 @@ def authenticate():
 def __get_or_create_subfolder(parent_folder_id: str, subfolder_name: str) -> str:
     service = authenticate()
 
-    query = f"name = '{subfolder_name}' and mimeType = 'application/vnd.google-apps.folder' and '{parent_folder_id}' in parents and trashed = false"
+    query = f"name = '{subfolder_name.strip()}' and mimeType = 'application/vnd.google-apps.folder' and '{parent_folder_id}' in parents and trashed = false"
     response = service.files().list(q=query, fields="files(id, name)").execute()
     folders = response.get("files", [])
 
