@@ -75,16 +75,12 @@ def compress_video(input_path: str):
 def prepare_video_to_view(video_path: str):
     cmd = [
         "ffmpeg",
-        "-i",
-        video_path,
-        "-c:v",
-        "mpeg4",
-        "-b:v",
-        "500k",
-        "-c:a",
+        "-i", video_path,
         "-vf", "scale=640:-2",
-        "-movflags",
-        "+faststart",
+        "-c:v", "mpeg4",
+        "-b:v", "500k",
+        "-c:a", "aac", 
+        "-movflags", "+faststart",
         video_path.replace(".mp4", "_processed_.mp4"),
     ]
     subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
