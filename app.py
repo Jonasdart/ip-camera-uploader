@@ -2,6 +2,7 @@ import math
 import streamlit as st
 import os
 import camera_model
+from drive_client import get_video_url
 from record import base_dir
 
 st.set_page_config(page_title="Gerenciador de Câmeras", layout="wide")
@@ -10,23 +11,6 @@ st.set_page_config(page_title="Gerenciador de Câmeras", layout="wide")
 page = st.query_params.get("pagina", "home")
 camera_name = st.query_params.get("cam", "")
 camera_id = st.query_params.get("cam_id", "")
-
-
-@st.dialog("Abrir video")
-def shown_video(video_path: str):
-    st.video(video_path)
-    if st.button("ver opções de download", type="primary", use_container_width=True,):
-        with st.spinner("Carregando...", show_time=True):
-            with open(video_path, "rb") as f:
-                st.download_button(
-                    label="Arquivo completo",
-                    data=f,
-                    file_name=os.path.split(video_path)[-1],
-                    mime="video/mp4",
-                    icon=":material/download:",
-                    type="tertiary",
-                    use_container_width=True,
-                )
 
 
 def normalize_name(name: str):
@@ -52,29 +36,38 @@ if page == "gravacoes" and camera_name:
                 records = sorted(
                     [f for f in os.listdir(os.path.join(camera_path, subpath))]
                 )
-                records = [record for record in records if record.endswith("_processed_.mp4")]
+                records = [record for record in records if record.endswith(".jpg")]
 
                 with st.expander(f"🕒 {subpath} - {len(records)} Gravações"):
-                    rows = [st.columns(3, border=True) for _ in range(math.ceil(len(records) / 3))]
+                    rows = [
+                        st.columns(3, border=True)
+                        for _ in range(math.ceil(len(records) / 3))
+                    ]
 
                     index = 0
                     for row in rows:
                         for col in row:
                             if index >= len(records):
                                 break
-                            video_path = os.path.join(
+                            thumb_path = os.path.join(
                                 camera_path, subpath, records[index]
                             )
-                            thumb_path = video_path.replace("_processed_.mp4", ".jpg")
 
-                            if os.path.exists(thumb_path):
-                                col.image(thumb_path, caption=records[index])
-                                if col.button(
-                                    "Opções", type="primary", icon="▶️", key=video_path, use_container_width=True
-                                ):
-                                    shown_video(video_path)
-                            else:
-                                col.warning("Gravação em andamento")
+                            col.image(thumb_path, caption=records[index])
+                            video_path = os.path.split(thumb_path)[-1].replace(
+                                ".jpg", ".mp4"
+                            )
+                            col.link_button(
+                                "Link do drive",
+                                get_video_url(
+                                    video_path,
+                                    subpath,
+                                    camera_data["camera_folder_id"],
+                                ),
+                                use_container_width=True,
+                                type="primary",
+                                icon="▶️"
+                            )
                             index += 1
     else:
         st.info("Nenhuma gravação encontrada localmente.")

@@ -26,7 +26,7 @@ def upload_video(
     date_path_prefix = list(Path(video_path).parts)[-2]
     camera_remote_folder_id = create_camera_path(camera)
     date_remote_folder_id = create_date_path(camera_remote_folder_id, date_path_prefix)
-    
+
     file_to_upload = video_path
     if to_compress:
         print(f"Comprimindo {video_path}...")
@@ -44,9 +44,7 @@ def exclude_video_files(video_path: str, files_suffix: Optional[list] = []):
         return
 
     exclude_list = [video_path]
-    exclude_list.extend(
-        [video_path.replace(".mp4", suffix) for suffix in files_suffix]
-    )
+    exclude_list.extend([video_path.replace(".mp4", suffix) for suffix in files_suffix])
     for f in exclude_list:
         if os.path.exists(f):
             os.remove(f)
@@ -75,12 +73,18 @@ def compress_video(input_path: str):
 def prepare_video_to_view(video_path: str):
     cmd = [
         "ffmpeg",
-        "-i", video_path,
-        "-vf", "scale=640:-2",
-        "-c:v", "mpeg4",
-        "-b:v", "500k",
-        "-c:a", "aac", 
-        "-movflags", "+faststart",
+        "-i",
+        video_path,
+        "-vf",
+        "scale=640:-2",
+        "-c:v",
+        "mpeg4",
+        "-b:v",
+        "500k",
+        "-c:a",
+        "aac",
+        "-movflags",
+        "+faststart",
         video_path.replace(".mp4", "_processed_.mp4"),
     ]
     subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
@@ -146,7 +150,7 @@ def start_monitoring(camera):
 
     filename = start_recording(rtsp, name)
     generate_thumbnail(filename)
-    prepare_video_to_view(filename)
+    # prepare_video_to_view(filename)
     upload_video(filename, name, to_compress=False, to_exclude=True)
     time.sleep(0.1)
 

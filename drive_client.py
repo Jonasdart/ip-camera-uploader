@@ -83,3 +83,14 @@ def upload_file(filepath, folder_id):
     
     return file.get("id")
 
+
+def get_video_url(filename, date_path, camera_uri):
+    service = authenticate()
+
+    subfolder_id = create_date_path(camera_uri, date_path)
+    query = f"name = '{filename}' and '{subfolder_id}' in parents and trashed = false"
+
+    response = service.files().list(q=query, fields="files(id, name)").execute()
+    folders = response.get('files', [])
+
+    return f"https://drive.google.com/file/d/{folders[0]['id']}/view?usp=drive_link"
