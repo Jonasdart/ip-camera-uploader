@@ -55,34 +55,42 @@ def upload_video(
 
 
 def upload_video_from_queue():
-    item = upload_queue.get()
-    (
-        video_path,
-        camera_id,
-        camera_name,
-        to_compress,
-        to_exclude,
-    ) = item
+    while True:
+        item = upload_queue.get()
+        if item is None:
+            break
 
-    if not os.path.exists(video_path):
+        (
+            video_path,
+            camera_id,
+            camera_name,
+            to_compress,
+            to_exclude,
+        ) = item
+
+        if not os.path.exists(video_path):
+            upload_queue.task_done()
+            continue
+
+        date_path_prefix = list(Path(video_path).parts)[-2]
+        camera_remote_folder_id = create_camera_path(camera_id, camera_name)
+        date_remote_folder_id = create_date_path(
+            camera_remote_folder_id, date_path_prefix
+        )
+
+        file_to_upload = video_path
+        if to_compress:
+            print(f"Comprimindo {video_path}...")
+            file_to_upload = compress_video(video_path)
+
+        upload_file(file_to_upload, date_remote_folder_id)
+        generate_thumbnail(video_path)
+
+        if to_exclude:
+            exclude_video_files(video_path, ["_compressed_.mp4"])
+
         upload_queue.task_done()
-    
-    date_path_prefix = list(Path(video_path).parts)[-2]
-    camera_remote_folder_id = create_camera_path(camera_id, camera_name)
-    date_remote_folder_id = create_date_path(camera_remote_folder_id, date_path_prefix)
-
-    file_to_upload = video_path
-    if to_compress:
-        print(f"Comprimindo {video_path}...")
-        file_to_upload = compress_video(video_path)
-
-    upload_file(file_to_upload, date_remote_folder_id)
-    generate_thumbnail(video_path)
-
-    if to_exclude:
-        exclude_video_files(video_path, ["_compressed_.mp4"])
-
-    upload_queue.task_done()
+        time.sleep(0.1)
 
 
 def exclude_video_files(video_path: str, files_suffix: Optional[list] = []):
@@ -195,7 +203,7 @@ def start_monitoring(camera: dict, camera_id: int):
     rtsp = f"rtsp://{user}:{passw}@{ip}/stream"
 
     filename = start_recording(rtsp, name, camera.get("segment_duration", "00:01:00"))
-    
+
     return filename
 
 
@@ -240,9 +248,7 @@ if __name__ == "__main__":
         with ProcessPoolExecutor(max_workers=2) as exec_:
             global executor
             executor = exec_
-            thread = Thread(
-                target=upload_video_from_queue, daemon=True
-            )
+            thread = Thread(target=upload_video_from_queue, daemon=True)
             thread.start()
             init_all_monitoring()
 
