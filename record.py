@@ -232,7 +232,7 @@ def schedule_camera(camera_id: int):
 
     print(f"🔁 Iniciando monitoramento para {camera_name}")
     future = executor.submit(start_monitoring, camera_data, camera_id)
-    future.add_done_callback(on_monitoring_done(camera_id, camera_name))
+    future.add_done_callback(on_monitoring_done(camera_id, camera_data["name"]))
     execution_futures[camera_id] = future
 
     camera_model.set_status(camera_id, True)
