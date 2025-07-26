@@ -86,7 +86,7 @@ def prepare_video_to_view(video_path: str):
         "-b:v",
         "500k",
         "-c:a",
-        "aac",
+        "-vf", "scale=640:-2",
         "-movflags",
         "+faststart",
         video_path.replace(".mp4", "_processed_.mp4"),
