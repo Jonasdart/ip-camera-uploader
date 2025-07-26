@@ -10,6 +10,18 @@ import camera_model
 from drive_client import create_camera_path, create_date_path, upload_file
 
 base_dir = "shared/recs"
+execution_threads: Dict[str, threading.Thread] = {}
+
+
+def thread_is_alive(cam_id: int) -> bool:
+    is_alive = False
+    try:
+        is_alive = execution_threads[cam_id].is_alive()
+    except KeyError:
+        pass
+
+    camera_model.set_status(cam_id, is_alive)
+    return is_alive
 
 
 def upload_video(
@@ -156,20 +168,23 @@ def start_monitoring(camera):
 
 
 if __name__ == "__main__":
-    execution_threads: Dict[str, threading.Thread] = {}
-    while True:
+    try:
+        while True:
+            for cam in camera_model.list_cameras():
+                cam_name = camera_model.normalize_name(cam["name"])
+                if thread_is_alive(cam.doc_id):
+                    continue
+                try:
+                    print(f"🔌 Conectando à câmera {cam_name} ONVIF em {cam['ip']}...")
+                    _thread = threading.Thread(
+                        target=start_monitoring, args=(cam,), name=cam_name
+                    )
+                    _thread.daemon = True
+                    _thread.start()
+                    execution_threads[cam.doc_id] = _thread
+                except Exception as e:
+                    print(f"❌ Erro ao conectar à câmera {cam_name}: {e}")
+            time.sleep(0.5)
+    finally:
         for cam in camera_model.list_cameras():
-            cam_name = camera_model.normalize_name(cam["name"])
-            if cam_name in execution_threads and execution_threads[cam_name].is_alive():
-                continue
-            try:
-                print(f"🔌 Conectando à câmera {cam_name} ONVIF em {cam['ip']}...")
-                _thread = threading.Thread(
-                    target=start_monitoring, args=(cam,), name=cam_name
-                )
-                _thread.daemon = True
-                _thread.start()
-                execution_threads[cam_name] = _thread
-            except Exception as e:
-                print(f"❌ Erro ao conectar à câmera {cam_name}: {e}")
-        time.sleep(0.5)
+            camera_model.set_status(cam.doc_id, False)

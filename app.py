@@ -66,7 +66,7 @@ if page == "gravacoes" and camera_name:
                                 ),
                                 use_container_width=True,
                                 type="primary",
-                                icon="▶️"
+                                icon="▶️",
                             )
                             index += 1
     else:
@@ -109,7 +109,9 @@ else:
             col1, col2 = st.columns([6, 1])
             with col1:
                 st.markdown(f"**{cam['name']}** — {cam['ip']}")
-                st.caption(f"{cam['date_range']} dias de retenção")
+                st.caption(
+                    f"status: {'Gravando' if cam.get('recording', False) else 'Parado'}"
+                )
             with col2:
                 c_col1, c_col2 = col2.columns([0.5, 0.5], gap="small")
                 c_col1.button(
