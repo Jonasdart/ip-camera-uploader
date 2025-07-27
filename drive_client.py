@@ -19,7 +19,7 @@ TOKEN_PATH = "shared/token.json"
 SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 
 # ID da pasta no Google Drive onde os arquivos serão enviados
-FOLDER_ID = "1uwzZpdiQFCCilR0xEYeRHvTkV8YsMoOR"
+FOLDER_ID = os.environ["GDRIVE_BASE_FOLDER_ID"]
 
 
 @lru_cache()
