@@ -32,6 +32,7 @@ def main():
                 upload_video(
                     file_full_path,
                     camera.doc_id,
+                    camera["name"],
                     to_exclude=True,
                     suffix_to_exclude=["_processed_.mp4", "_compressed_.mp4", ".jpg"],
                 )

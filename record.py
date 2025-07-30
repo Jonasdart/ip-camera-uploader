@@ -245,11 +245,11 @@ def init_all_monitoring():
 
 if __name__ == "__main__":
     try:
+        thread = Thread(target=upload_video_from_queue, daemon=True)
+        thread.start()
         with ProcessPoolExecutor(max_workers=2) as exec_:
             global executor
             executor = exec_
-            thread = Thread(target=upload_video_from_queue, daemon=True)
-            thread.start()
             init_all_monitoring()
 
             while True:
