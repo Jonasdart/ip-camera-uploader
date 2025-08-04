@@ -2,31 +2,18 @@ import datetime
 import os
 import subprocess
 import time
-from typing import Any, Callable, Dict, Iterable, Mapping, Optional
+from typing import Optional
 from pathlib import Path
-from concurrent.futures import ProcessPoolExecutor, Future
 from queue import Queue
-from threading import Thread
+import argparse
 
 import camera_model
 from drive_client import create_camera_path, create_date_path, upload_file
-from utils import retry
 
 base_dir = "shared/recs"
 upload_queue = Queue()
-execution_futures: Dict[int, Future] = {}
 
 
-def recording(cam_id: int) -> bool:
-    is_recording = False
-    try:
-        is_recording = execution_futures[cam_id].running()
-    except KeyError:
-        pass
-    return is_recording
-
-
-@retry(0.5)
 def upload_video(
     video_path: str,
     camera_id: int,
@@ -172,7 +159,7 @@ def start_recording(rtsp_url, camera_name, segment_duration="00:01:00"):
     output_path = os.path.join(output_dir, filename)
 
     print(f"🎥 Gravando: {filename}")
-    print(output_path)
+    print(rtsp_url)
 
     cmd = [
         "ffmpeg",
@@ -190,12 +177,12 @@ def start_recording(rtsp_url, camera_name, segment_duration="00:01:00"):
         "-2",
         output_path,
     ]
-    subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
 
     return output_path
 
 
-def start_monitoring(camera: dict, camera_id: int):
+def start_monitoring(camera: dict):
     ip = camera.get("ip")
     user = camera.get("user")
     passw = camera.get("passw")
@@ -207,54 +194,35 @@ def start_monitoring(camera: dict, camera_id: int):
     return filename
 
 
-def on_monitoring_done(camera_id, camera_name):
-    def callback(future: Future):
-        try:
-            filename = future.result()
-            upload_queue.put((filename, camera_id, camera_name, False, True))
-        except Exception as e:
-            print(f"⚠️ Execução da câmera {camera_id} falhou: {e}")
-        finally:
-            camera_model.set_status(camera_id, False)
-            # Reagendar nova execução (loop via callback)
-            schedule_camera(camera_id)
-
-    return callback
+def on_monitoring_done(filename: str, camera_id: int, camera_name: str):
+    camera_model.put_upload_queue(
+        filename=filename,
+        camera_id=camera_id,
+        camera_name=camera_name,
+        to_compress=False,
+        to_exclude=True,
+    )
 
 
-def schedule_camera(camera_id: int):
+def start(camera_id: int):
     camera_data = camera_model.get_camera_data(camera_id)
     if camera_data is None:
         return
-    if recording(camera_id):
-        return
-    camera_name = camera_model.normalize_name(camera_data["name"])
 
-    print(f"🔁 Iniciando monitoramento para {camera_name}")
-    future = executor.submit(start_monitoring, camera_data, camera_id)
-    future.add_done_callback(on_monitoring_done(camera_id, camera_data["name"]))
-    execution_futures[camera_id] = future
-
-    camera_model.set_status(camera_id, True)
-
-
-def init_all_monitoring():
-    for camera in camera_model.list_cameras():
-        schedule_camera(camera.doc_id)
+    filename = start_monitoring(camera_data)
+    on_monitoring_done(filename, camera_id, camera_data["name"])
 
 
 if __name__ == "__main__":
-    try:
-        thread = Thread(target=upload_video_from_queue, daemon=True)
-        thread.start()
-        with ProcessPoolExecutor(max_workers=2) as exec_:
-            global executor
-            executor = exec_
-            init_all_monitoring()
+    parser = argparse.ArgumentParser(prog="Record Camera", add_help=False)
+    parser.add_argument("--camera", help="camera ID", type=int, required=True)
+    camera = parser.parse_args().camera
 
-            while True:
-                time.sleep(3600)
-    finally:
-        upload_queue.put(None)
-        for cam in camera_model.list_cameras():
-            camera_model.set_status(cam.doc_id, False)
+    try:
+        camera_model.set_status(camera_id=camera, status=True)
+        start(camera)
+    except Exception as err:
+        print(err)
+
+    camera_model.set_status(camera_id=camera, status=False)
+    exit()

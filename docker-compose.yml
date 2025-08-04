@@ -1,43 +1,34 @@
 version: '3.9'
 
 services:
-  # front:
-  #   build: .
-  #   image: ipcam-app
-  #   container_name: ipcam_front
-  #   command: streamlit run app.py --server.port=8501 --server.address=0.0.0.0
-  #   ports:
-  #     - "8502:8501"
-  #   restart: always
-  #   volumes:
-  #     - shared-data:/app/shared
-  #     - /etc/timezone:/etc/timezone:ro
-  #     - /etc/localtime:/etc/localtime:ro
-
-  recording:
+  front:
     build: .
     image: ipcam-app
-    container_name: ipcam_recording
-    command: python record.py
+    container_name: ipcam_front
+    command: streamlit run app.py --server.port=8501 --server.address=0.0.0.0
+    ports:
+      - "8502:8501"
     restart: always
     environment:
       - GDRIVE_BASE_FOLDER_ID=
       - PYTHONUNBUFFERED=1
     volumes:
-      - shared-data:/app/shared
+      - .:/app/
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
 
-  cleaning:
+  orchestrator:
     image: ipcam-app
-    container_name: ipcam_cleaning
-    command: python cleanup.py
+    container_name: ipcam-app-orchestrator
+    command: python orchestrator.py
     restart: always
+    environment:
+      - GDRIVE_BASE_FOLDER_ID=
+      - LOG_LEVEL=INFO
+      - PYTHONUNBUFFERED=1
+      - DOCKER_ENV=True
     volumes:
-      - shared-data:/app/shared
+      - .:/app/
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
-
-
-volumes:
-  shared-data:
+      - /var/run/docker.sock:/var/run/docker.sock

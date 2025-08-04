@@ -69,3 +69,16 @@ def get_camera_data(camera_id: int) -> dict:
 def set_status(camera_id: int, status: bool):
     camera_collection = db.table("cameras")
     camera_collection.update({"recording": status}, doc_ids=[camera_id])
+
+
+def put_upload_queue(**kwargs):
+    queue_collection = db.table("upload_queue")
+    queue_collection.insert(kwargs)
+
+
+def get_upload_queue():
+    queue_collection = db.table("upload_queue")
+    upload_queue = queue_collection.all()
+    queue_collection.remove(doc_ids=[_queue.doc_id for _queue in upload_queue])
+
+    return upload_queue

@@ -75,7 +75,6 @@ def create_date_path(camera_uri: str, record_date: Union[str, date]) -> str:
     return __get_or_create_subfolder(camera_uri, record_date)
 
 
-@retry(0.5)
 def upload_file(filepath, folder_id):
     service = authenticate()
 

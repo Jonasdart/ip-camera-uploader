@@ -1,5 +1,6 @@
 import datetime
 import os
+from time import sleep
 from camera_model import list_cameras, normalize_name
 from record import base_dir, upload_video
 
@@ -41,3 +42,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    sleep(3600)
