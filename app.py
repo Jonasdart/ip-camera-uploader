@@ -17,6 +17,29 @@ def normalize_name(name: str):
     return name.replace(" ", "_").lower()
 
 
+@st.dialog("Editar Câmera", width="large")
+def edit_camera(camera_id: int):
+    with st.form("edit_camera"):
+        camera_data = camera_model.get_camera_data(camera_id)
+        name = st.text_input("Nome", value=camera_data["name"])
+        ip = st.text_input("IP", value=camera_data["ip"])
+        user = st.text_input("Usuário", value=camera_data["user"])
+        passw = st.text_input("Senha", type="password", value=camera_data["passw"])
+        segment_duration = st.text_input(
+            "Duração de cada gravação", placeholder="00:00:30", value=camera_data["segment_duration"]
+        )
+        date_range = st.number_input(
+            "Dias para manter gravações", min_value=1, value=camera_data["date_range"]
+        )
+
+        if st.form_submit_button("Salvar", use_container_width=True, type="primary"):
+            with st.spinner("Salvando...", show_time=True):
+                camera_model.edit_camera(
+                    camera_id, name, ip, user, passw, segment_duration, date_range
+                )
+            st.success(f"Câmera {name} atualizada!")
+
+
 # 📄 Página: gravações da câmera
 if page == "gravacoes" and camera_name:
     st.button(
@@ -123,6 +146,7 @@ else:
                 c_col1.button(
                     "⚙️",
                     key="editar_" + cam["name"],
+                    on_click=lambda cam_data=cam: edit_camera(cam_data.doc_id)
                 )
                 c_col2.button(
                     "📂",

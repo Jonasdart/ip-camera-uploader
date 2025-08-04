@@ -28,6 +28,29 @@ def add_camera(
     update_camera_uri(camera_id, camera_uri)
 
 
+def edit_camera(
+    camera_id: int,
+    name: str,
+    ip: str,
+    user: str,
+    passw: str,
+    segment_duration: str,
+    date_range: int,
+):
+    camera_collection = db.table("cameras")
+    camera_collection.update(
+        {
+            "name": name,
+            "ip": ip,
+            "user": user,
+            "passw": passw,
+            "segment_duration": segment_duration,
+            "date_range": date_range,
+        },
+        doc_ids=[camera_id],
+    )
+
+
 def update_camera_uri(camera_id: int, uri: str):
     camera_collection = db.table("cameras")
     camera_collection.update({"uri": uri}, doc_ids=[camera_id])
