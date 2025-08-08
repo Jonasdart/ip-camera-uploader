@@ -21,23 +21,25 @@ def normalize_name(name: str):
 def edit_camera(camera_id: int):
     with st.form("edit_camera"):
         camera_data = camera_model.get_camera_data(camera_id)
-        name = st.text_input("Nome", value=camera_data["name"])
-        ip = st.text_input("IP", value=camera_data["ip"])
-        user = st.text_input("Usuário", value=camera_data["user"])
-        passw = st.text_input("Senha", type="password", value=camera_data["passw"])
-        segment_duration = st.text_input(
-            "Duração de cada gravação", placeholder="00:00:30", value=camera_data["segment_duration"]
+        camera_data.name = st.text_input("Nome", value=camera_data.name)
+        camera_data.ip = st.text_input("IP", value=camera_data.ip)
+        camera_data.user = st.text_input("Usuário", value=camera_data.user)
+        camera_data.passw = st.text_input(
+            "Senha", type="password", value=camera_data.passw
         )
-        date_range = st.number_input(
-            "Dias para manter gravações", min_value=1, value=camera_data["date_range"]
+        camera_data.segment_duration = st.text_input(
+            "Duração de cada gravação",
+            placeholder="00:00:30",
+            value=camera_data.segment_duration,
+        )
+        camera_data.date_range = st.number_input(
+            "Dias para manter gravações", min_value=1, value=camera_data.date_range
         )
 
         if st.form_submit_button("Salvar", use_container_width=True, type="primary"):
             with st.spinner("Salvando...", show_time=True):
-                camera_model.edit_camera(
-                    camera_id, name, ip, user, passw, segment_duration, date_range
-                )
-            st.success(f"Câmera {name} atualizada!")
+                camera_data.edit()
+            st.success(f"Câmera {camera_data.name} atualizada!")
 
 
 # 📄 Página: gravações da câmera
@@ -83,7 +85,7 @@ if page == "gravacoes" and camera_name:
                             video_url = get_video_url(
                                 video_filename,
                                 subpath,
-                                camera_data["uri"],
+                                camera_data.uri,
                             )
                             print(video_url)
                             if video_url:
@@ -102,7 +104,7 @@ if page == "gravacoes" and camera_name:
 
     st.markdown("---")
     st.markdown(
-        f"📁 [Ver gravações antigas no Google Drive](https://drive.google.com/drive/u/1/folders/{camera_data['uri']})",
+        f"📁 [Ver gravações antigas no Google Drive](https://drive.google.com/drive/u/1/folders/{camera_data.uri})",
         unsafe_allow_html=True,
     )
 else:
@@ -123,9 +125,15 @@ else:
 
             if st.form_submit_button("Salvar"):
                 with st.spinner("Salvando...", show_time=True):
-                    camera_model.add_camera(
-                        name, ip, user, passw, segment_duration, date_range
+                    camera = camera_model.Camera(
+                        name=name,
+                        ip=ip,
+                        user=user,
+                        passw=passw,
+                        segment_duration=segment_duration,
+                        date_range=date_range,
                     )
+                    camera.save()
                 st.success(f"Câmera {name} adicionada!")
 
     st.markdown("---")
@@ -134,28 +142,25 @@ else:
     cameras = camera_model.list_cameras()
     if cameras:
         for cam in cameras:
-            cam_id = cam.doc_id
             col1, col2 = st.columns([6, 1])
             with col1:
-                st.markdown(f"**{cam['name']}** — {cam['ip']}")
-                st.caption(
-                    f"status: {'Gravando' if cam.get('recording', False) else 'Parado'}"
-                )
+                st.markdown(f"**{cam.name}** — {cam.ip}")
+                st.caption(f"status: {'Gravando' if cam.recording else 'Parado'}")
             with col2:
                 c_col1, c_col2 = col2.columns([0.5, 0.5], gap="small")
                 c_col1.button(
                     "⚙️",
-                    key="editar_" + cam["name"],
-                    on_click=lambda cam_data=cam: edit_camera(cam_data.doc_id)
+                    key="editar_" + cam.name,
+                    on_click=lambda cam_id=cam.wid: edit_camera(cam_id),
                 )
                 c_col2.button(
                     "📂",
-                    key="gravacoes_" + cam["name"],
+                    key="gravacoes_" + cam.name,
                     on_click=lambda cam_data=cam: st.query_params.from_dict(
                         {
                             "pagina": "gravacoes",
-                            "cam": cam_data["name"],
-                            "cam_id": cam_data.doc_id,
+                            "cam": cam_data.name,
+                            "cam_id": cam_data.wid,
                         }
                     ),
                 )
