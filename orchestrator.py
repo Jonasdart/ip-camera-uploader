@@ -1,6 +1,5 @@
-from datetime import datetime
 from time import sleep
-from typing import Dict, Optional
+from typing import List
 import camera_model
 import docker
 import os
@@ -15,7 +14,7 @@ use_docker_env = os.environ.get("DOCKER_ENV", "False") == "True"
 main_container_name = "ipcam-app-orchestrator"
 
 
-def __up_base_container(name: str, entrypoint: str):
+def __up_base_container(name: str, entrypoint: str) -> Container:
     try:
         container = docker_client.containers.get(name)
         container.remove(force=True)
@@ -48,21 +47,21 @@ def __up_base_container(name: str, entrypoint: str):
     return container
 
 
-def start_monitoring(cam_id: int):
+def start_monitoring(cam_id: int) -> Container:
     name = f"ipcam-app-monitoring-{cam_id}"
     entrypoint = f"python record.py --camera={cam_id}"
 
     return __up_base_container(name, entrypoint)
 
 
-def provisione_uploader():
+def provisione_uploader() -> Container:
     name = f"ipcam-app-queue-uploader"
     entrypoint = f"python queue_uploader.py"
 
     return __up_base_container(name, entrypoint)
 
 
-def provisione_cleanup():
+def provisione_cleanup() -> Container:
     name = f"ipcam-app-cleanup"
     entrypoint = f"python cleanup.py"
 
@@ -70,18 +69,20 @@ def provisione_cleanup():
 
 
 if __name__ == "__main__":
+    containers: List[Container] = []
     logging.info("Provisioning queue videos uploader")
-    provisione_uploader()
+    containers.append(provisione_uploader())
 
     logging.info("Provisioning local videos cleanup")
-    provisione_cleanup()
+    containers.append(provisione_cleanup())
 
     logging.info("Starting cameras monitoring")
 
-    cam_recorders: Dict[int, Container] = {}
     cameras_list = camera_model.list_cameras()
     for cam in cameras_list:
-        cam_recorders[cam.wid] = start_monitoring(cam.wid)
+        containers.append(start_monitoring(cam.wid))
         logging.info(f"🔁 Camera: {cam.normalized_name()} | IP: {cam.ip} | Started")
 
     sleep(3600)
+    for container in containers:
+        container.remove(force=True)
