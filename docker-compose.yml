@@ -4,7 +4,7 @@ services:
   front:
     build: .
     image: ipcam-app
-    container_name: ipcam_front
+    container_name: ipcam-app-front
     command: streamlit run app.py --server.port=8501 --server.address=0.0.0.0
     ports:
       - "8502:8501"
@@ -16,6 +16,7 @@ services:
       - .:/app/
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock
 
   orchestrator:
     image: ipcam-app

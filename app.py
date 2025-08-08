@@ -3,6 +3,7 @@ import streamlit as st
 import os
 import camera_model
 from drive_client import get_video_url
+from orchestrator import get_container_logs, BASE_CONTAINER_NAME
 from record import base_dir
 
 st.set_page_config(page_title="Gerenciador de Câmeras", layout="wide")
@@ -40,6 +41,35 @@ def edit_camera(camera_id: int):
             with st.spinner("Salvando...", show_time=True):
                 camera_data.edit()
             st.success(f"Câmera {camera_data.name} atualizada!")
+
+
+@st.dialog("Logs", width="large")
+def get_recorder_logs(last_container_name: str):
+    minutes_range = st.number_input(
+        "Buscar ultimos",
+        help="Quantidade em minutos de tempo no passado para buscar os logs",
+        min_value=1,
+        max_value=60,
+        value=1,
+    )
+    try:
+        logs = get_container_logs(
+            f"{BASE_CONTAINER_NAME}-{last_container_name}", minutes_range
+        )
+    except Exception as err:
+        st.error(err)
+        logs = []
+    for log_line in logs:
+        if not log_line:
+            continue
+        with st.empty():
+            if log_line.startswith("WARNING"):
+                st.warning(log_line.strip())
+                continue
+            if log_line.startswith("ERROR"):
+                st.error(log_line.strip())
+                continue
+            st.info(log_line.strip())
 
 
 # 📄 Página: gravações da câmera
@@ -137,7 +167,14 @@ else:
                 st.success(f"Câmera {name} adicionada!")
 
     st.markdown("---")
-    st.subheader("📷 Câmeras cadastradas")
+
+    title_col1, title_col2 = st.columns([6, 1])
+    title_col1.subheader("📷 Câmeras cadastradas")
+    title_col2.button(
+        "_",
+        key="orchestrator_logs",
+        on_click=lambda: get_recorder_logs("orchestrator"),
+    )
 
     cameras = camera_model.list_cameras()
     if cameras:
@@ -147,13 +184,20 @@ else:
                 st.markdown(f"**{cam.name}** — {cam.ip}")
                 st.caption(f"status: {'Gravando' if cam.recording else 'Parado'}")
             with col2:
-                c_col1, c_col2 = col2.columns([0.5, 0.5], gap="small")
+                c_col1, c_col2, c_col3 = col2.columns(3, gap="small")
                 c_col1.button(
+                    "_",
+                    key="logs_" + cam.name,
+                    on_click=lambda cam_id=cam.wid: get_recorder_logs(
+                        f"monitoring-{cam_id}"
+                    ),
+                )
+                c_col2.button(
                     "⚙️",
                     key="editar_" + cam.name,
                     on_click=lambda cam_id=cam.wid: edit_camera(cam_id),
                 )
-                c_col2.button(
+                c_col3.button(
                     "📂",
                     key="gravacoes_" + cam.name,
                     on_click=lambda cam_data=cam: st.query_params.from_dict(

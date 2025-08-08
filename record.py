@@ -1,7 +1,9 @@
 import datetime
+import logging
 import os
+import signal
 import subprocess
-import time
+import sys
 from typing import Optional
 from pathlib import Path
 from queue import Queue
@@ -12,6 +14,7 @@ from drive_client import create_camera_path, create_date_path, upload_file
 
 base_dir = "shared/recs"
 upload_queue = Queue()
+camera = None
 
 
 def upload_video(
@@ -23,12 +26,12 @@ def upload_video(
     suffix_to_exclude: Optional[list] = ["_compressed_.mp4"],
 ):
     if not os.path.exists(video_path):
-        print("Video nao encontrado")
+        logging.warning("Video nao encontrado")
         return
 
     date_path_prefix = list(Path(video_path).parts)[-2]
     camera_remote_folder_id = create_camera_path(camera_name)
-    
+
     camera_data = camera_model.get_camera_data(camera_id)
     camera_data.set_uri(camera_remote_folder_id)
 
@@ -36,7 +39,7 @@ def upload_video(
 
     file_to_upload = video_path
     if to_compress:
-        print(f"Comprimindo {video_path}...")
+        logging.debug(f"Comprimindo {video_path}...")
         file_to_upload = compress_video(video_path)
 
     upload_file(file_to_upload, date_remote_folder_id)
@@ -47,7 +50,7 @@ def upload_video(
 
 def exclude_video_files(video_path: str, files_suffix: Optional[list] = []):
     if video_path.endswith("_.mp4"):
-        print("Only originals paths is allowed")
+        logging.warning("Only originals paths is allowed")
         return
 
     exclude_list = [video_path]
@@ -55,7 +58,7 @@ def exclude_video_files(video_path: str, files_suffix: Optional[list] = []):
     for f in exclude_list:
         if os.path.exists(f):
             os.remove(f)
-            print(f"Arquivo removido: {f}")
+            logging.debug(f"Arquivo removido: {f}")
 
 
 def compress_video(input_path: str):
@@ -123,8 +126,8 @@ def start_recording(rtsp_url: str, camera: camera_model.Camera):
     filename = f"{camera.normalized_name()}_{now.isoformat(timespec='seconds')}.mp4"
     output_path = os.path.join(output_dir, filename)
 
-    print(f"🎥 Gravando: {filename}")
-    print(rtsp_url)
+    logging.info(f"🎥 Gravando: {filename}")
+    logging.debug(rtsp_url)
 
     cmd = [
         "ffmpeg",
@@ -156,22 +159,38 @@ def start_monitoring(camera: camera_model.Camera):
 
 
 def start(camera: camera_model.Camera):
+    logging.info(
+        f"Recording segments for {camera.name} with {camera.segment_duration} of duration"
+    )
     filename = start_monitoring(camera)
     upload_queue = camera_model.UploadQueue(filename=filename, camera_id=camera.wid)
     upload_queue.put()
 
 
+def cleanup_and_exit(signum=None, frame=None):
+    if camera:
+        try:
+            camera.set_status(False)
+            logging.info(f"📷 Status da câmera {camera.wid} alterado para False.")
+        except Exception as e:
+            logging.error(f"Erro ao alterar status da câmera: {e}")
+    sys.exit(0)
+
+
 if __name__ == "__main__":
+    signal.signal(signal.SIGTERM, cleanup_and_exit)
+    signal.signal(signal.SIGINT, cleanup_and_exit)
+
     parser = argparse.ArgumentParser(prog="Record Camera", add_help=False)
     parser.add_argument("--camera", help="camera ID", type=int, required=True)
     camera_id = parser.parse_args().camera
+
     camera = camera_model.get_camera_data(camera_id)
 
     try:
         camera.set_status(True)
         start(camera)
     except Exception as err:
-        print(err)
-
-    camera.set_status(False)
-    exit()
+        logging.error(err)
+    finally:
+        cleanup_and_exit()

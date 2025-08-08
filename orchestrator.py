@@ -1,3 +1,6 @@
+from datetime import datetime, timedelta
+import signal
+import sys
 from time import sleep
 from typing import List
 import camera_model
@@ -11,7 +14,13 @@ docker_client = docker.from_env()
 local_path = os.path.abspath(".")
 logger = logging.basicConfig(level=os.environ.get("LOG_LEVEL", logging.INFO))
 use_docker_env = os.environ.get("DOCKER_ENV", "False") == "True"
-main_container_name = "ipcam-app-orchestrator"
+BASE_CONTAINER_NAME = "ipcam-app"
+main_container_name = BASE_CONTAINER_NAME + "-orchestrator"
+containers: List[Container] = []
+
+
+def __get_last_minutes(minutes=1):
+    return datetime.now() - timedelta(minutes=minutes)
 
 
 def __up_base_container(name: str, entrypoint: str) -> Container:
@@ -47,29 +56,50 @@ def __up_base_container(name: str, entrypoint: str) -> Container:
     return container
 
 
+def get_container_logs(container_name: str, minutes_range: int = 1) -> str:
+    since = __get_last_minutes(minutes_range)
+    container = docker_client.containers.get(container_name)
+    logs = container.logs(stream=False, since=since).decode()
+
+    return logs.split("\n")
+
+
 def start_monitoring(cam_id: int) -> Container:
-    name = f"ipcam-app-monitoring-{cam_id}"
+    name = f"{BASE_CONTAINER_NAME}-monitoring-{cam_id}"
     entrypoint = f"python record.py --camera={cam_id}"
 
     return __up_base_container(name, entrypoint)
 
 
 def provisione_uploader() -> Container:
-    name = f"ipcam-app-queue-uploader"
+    name = f"{BASE_CONTAINER_NAME}-queue-uploader"
     entrypoint = f"python queue_uploader.py"
 
     return __up_base_container(name, entrypoint)
 
 
 def provisione_cleanup() -> Container:
-    name = f"ipcam-app-cleanup"
+    name = f"{BASE_CONTAINER_NAME}-cleanup"
     entrypoint = f"python cleanup.py"
 
     return __up_base_container(name, entrypoint)
 
 
+def cleanup_and_exit(signum=None, frame=None):
+    logging.info("🛑 Recebido sinal de encerramento. Parando containers...")
+    for container in containers:
+        try:
+            container.stop(timeout=5)
+            logging.info(f"Container {container.name} parado.")
+        except Exception as e:
+            logging.error(f"Erro ao parar container: {e}")
+    sys.exit(0)
+
+
 if __name__ == "__main__":
-    containers: List[Container] = []
+    signal.signal(signal.SIGTERM, cleanup_and_exit)
+    signal.signal(signal.SIGINT, cleanup_and_exit)
+
     logging.info("Provisioning queue videos uploader")
     containers.append(provisione_uploader())
 
@@ -84,5 +114,3 @@ if __name__ == "__main__":
         logging.info(f"🔁 Camera: {cam.normalized_name()} | IP: {cam.ip} | Started")
 
     sleep(3600)
-    for container in containers:
-        container.remove(force=True)
