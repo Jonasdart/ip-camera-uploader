@@ -86,11 +86,11 @@ def provisione_cleanup() -> Container:
 
 
 def cleanup_and_exit(signum=None, frame=None):
-    logging.info("🛑 Recebido sinal de encerramento. Parando containers...")
+    logging.warning("🛑 Recebido sinal de encerramento. Parando containers...")
     for container in containers:
         try:
             container.stop(timeout=5)
-            logging.info(f"Container {container.name} parado.")
+            logging.warning(f"Container {container.name} parado.")
         except Exception as e:
             logging.error(f"Erro ao parar container: {e}")
     sys.exit(0)
