@@ -81,9 +81,7 @@ if __name__ == "__main__":
     cam_recorders: Dict[int, Container] = {}
     cameras_list = camera_model.list_cameras()
     for cam in cameras_list:
-        cam_id = cam.doc_id
-        camera_name = camera_model.normalize_name(cam["name"])
-        cam_recorders[cam_id] = start_monitoring(cam_id)
-        logging.info(f"🔁 Camera: {camera_name} | IP: {cam['ip']} | Started")
+        cam_recorders[cam.wid] = start_monitoring(cam.wid)
+        logging.info(f"🔁 Camera: {cam.normalized_name()} | IP: {cam.ip} | Started")
 
     sleep(3600)

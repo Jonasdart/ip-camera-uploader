@@ -7,11 +7,45 @@ DB_PATH = "shared/db.sqlite3"
 
 
 class UploadQueue(BaseModel):
-    wid: int
-    name: str
-    path: str
-    extra: str
-    
+    wid: Optional[int] = None
+    filename: str
+    camera_id: int
+    to_compress: bool = False
+    to_exclude: bool = True
+
+    def put(self):
+        with get_connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO upload_queue (filename, camera_id, to_compress, to_exclude)
+                VALUES (?, ?, ?, ?)
+            """,
+                (
+                    self.filename,
+                    self.camera_id,
+                    self.to_compress,
+                    self.to_exclude,
+                ),
+            )
+            
+    def acknowledge(self):
+        if not self.wid:
+            raise sqlite3.IntegrityError("Set Object ID Before.")
+
+        with get_connection() as conn:
+            conn.execute("DELETE FROM upload_queue where id=?", (self.wid,))
+
+
+
+def get_upload_queue(ack: bool = True) -> List[UploadQueue]:
+    with get_connection() as conn:
+        cursor = conn.execute("SELECT * FROM upload_queue")
+        rows = [UploadQueue(wid=row["id"], **row) for row in cursor.fetchall()]
+        if ack:
+            cursor.execute("DELETE FROM upload_queue")
+
+        return rows
+
 
 class Camera(BaseModel):
     wid: Optional[int] = None
@@ -19,13 +53,13 @@ class Camera(BaseModel):
     ip: str
     user: str
     passw: str
-    segment_duration: str
+    segment_duration: str = "00:00:30"
     date_range: int
     uri: Optional[str] = None
     recording: bool = False
 
-    def normalize_name(name: str):
-        return name.replace(" ", "_").lower()
+    def normalized_name(self):
+        return self.name.replace(" ", "_").lower()
 
     def save(self):
         with get_connection() as conn:
@@ -100,6 +134,19 @@ def get_connection():
     return conn
 
 
+def get_camera_data(camera_id: int) -> Camera:
+    with get_connection() as conn:
+        cursor = conn.execute("SELECT * FROM cameras WHERE id=?", (camera_id,))
+        row = cursor.fetchone()
+        return Camera(wid=row["id"], **row) if row else None
+
+
+def list_cameras() -> List[Camera]:
+    with get_connection() as conn:
+        cursor = conn.execute("SELECT * FROM cameras")
+        return [Camera(wid=row["id"], **row) for row in cursor.fetchall()]
+
+
 def init_db():
     with get_connection() as conn:
         cursor = conn.cursor()
@@ -124,46 +171,15 @@ def init_db():
             """
         CREATE TABLE IF NOT EXISTS upload_queue (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT,
-            path TEXT,
-            extra TEXT
+            filename TEXT,
+            camera_id INTEGER,
+            to_compress BOOLEAN DEFAULT 0,
+            to_exclude BOOLEAN DEFAULT 1
         )
         """
         )
 
         conn.commit()
-
-
-def put_upload_queue(**kwargs):
-    with get_connection() as conn:
-        conn.execute(
-            """
-            INSERT INTO upload_queue (name, path, extra)
-            VALUES (?, ?, ?)
-        """,
-            (kwargs.get("name"), kwargs.get("path"), kwargs.get("extra")),
-        )
-
-
-def get_upload_queue():
-    with get_connection() as conn:
-        cursor = conn.execute("SELECT * FROM upload_queue")
-        rows = [dict(row) for row in cursor.fetchall()]
-        conn.execute("DELETE FROM upload_queue")
-        return rows
-
-
-def get_camera_data(camera_id: int) -> Camera:
-    with get_connection() as conn:
-        cursor = conn.execute("SELECT * FROM cameras WHERE id=?", (camera_id,))
-        row = cursor.fetchone()
-        return Camera(wid=row["id"], **row) if row else None
-
-
-def list_cameras() -> List[Camera]:
-    with get_connection() as conn:
-        cursor = conn.execute("SELECT * FROM cameras")
-        return [Camera(wid=row["id"], **row) for row in cursor.fetchall()]
 
 
 init_db()

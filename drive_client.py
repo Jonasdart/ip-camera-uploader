@@ -1,4 +1,3 @@
-import camera_model
 import os
 from datetime import date
 from functools import lru_cache
@@ -62,9 +61,8 @@ def __get_or_create_subfolder(parent_folder_id: str, subfolder_name: str) -> str
 
 
 @lru_cache(128)
-def create_camera_path(camera_id: int, camera_name) -> str:
+def create_camera_path(camera_name) -> str:
     camera_uri = __get_or_create_subfolder(FOLDER_ID, camera_name)
-    camera_model.update_camera_uri(camera_id, camera_uri)
     return camera_uri
 
 

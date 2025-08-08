@@ -1,7 +1,7 @@
 import datetime
 import os
 from time import sleep
-from camera_model import list_cameras, normalize_name
+from camera_model import list_cameras
 from record import base_dir, upload_video
 
 
@@ -9,7 +9,7 @@ def main():
     today = datetime.date.today()
 
     for camera in list_cameras():
-        oldest_sources = os.path.join(base_dir, normalize_name(camera["name"]))
+        oldest_sources = os.path.join(base_dir, camera.normalized_name())
         print(oldest_sources)
         oldest_sources = [
             os.path.join(oldest_sources, day)
@@ -32,8 +32,8 @@ def main():
 
                 upload_video(
                     file_full_path,
-                    camera.doc_id,
-                    camera["name"],
+                    camera.wid,
+                    camera.name,
                     to_exclude=True,
                     suffix_to_exclude=["_processed_.mp4", "_compressed_.mp4", ".jpg"],
                 )

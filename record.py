@@ -27,7 +27,11 @@ def upload_video(
         return
 
     date_path_prefix = list(Path(video_path).parts)[-2]
-    camera_remote_folder_id = create_camera_path(camera_id, camera_name)
+    camera_remote_folder_id = create_camera_path(camera_name)
+    
+    camera_data = camera_model.get_camera_data(camera_id)
+    camera_data.set_uri(camera_remote_folder_id)
+
     date_remote_folder_id = create_date_path(camera_remote_folder_id, date_path_prefix)
 
     file_to_upload = video_path
@@ -39,45 +43,6 @@ def upload_video(
 
     if to_exclude:
         exclude_video_files(video_path, suffix_to_exclude)
-
-
-def upload_video_from_queue():
-    while True:
-        item = upload_queue.get()
-        if item is None:
-            break
-
-        (
-            video_path,
-            camera_id,
-            camera_name,
-            to_compress,
-            to_exclude,
-        ) = item
-
-        if not os.path.exists(video_path):
-            upload_queue.task_done()
-            continue
-
-        date_path_prefix = list(Path(video_path).parts)[-2]
-        camera_remote_folder_id = create_camera_path(camera_id, camera_name)
-        date_remote_folder_id = create_date_path(
-            camera_remote_folder_id, date_path_prefix
-        )
-
-        file_to_upload = video_path
-        if to_compress:
-            print(f"Comprimindo {video_path}...")
-            file_to_upload = compress_video(video_path)
-
-        upload_file(file_to_upload, date_remote_folder_id)
-        generate_thumbnail(video_path)
-
-        if to_exclude:
-            exclude_video_files(video_path, ["_compressed_.mp4"])
-
-        upload_queue.task_done()
-        time.sleep(0.1)
 
 
 def exclude_video_files(video_path: str, files_suffix: Optional[list] = []):
@@ -149,13 +114,13 @@ def generate_thumbnail(video_path):
     subprocess.run(thumb_cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
 
 
-def start_recording(rtsp_url, camera_name, segment_duration="00:01:00"):
+def start_recording(rtsp_url: str, camera: camera_model.Camera):
     now = datetime.datetime.now()
 
-    output_dir = f"{base_dir}/{camera_model.normalize_name(camera_name)}/{now.date().isoformat()}"
+    output_dir = f"{base_dir}/{camera.normalized_name()}/{now.date().isoformat()}"
     os.makedirs(output_dir, exist_ok=True)
 
-    filename = f"{camera_model.normalize_name(camera_name)}_{now.isoformat(timespec='seconds')}.mp4"
+    filename = f"{camera.normalized_name()}_{now.isoformat(timespec='seconds')}.mp4"
     output_path = os.path.join(output_dir, filename)
 
     print(f"🎥 Gravando: {filename}")
@@ -168,7 +133,7 @@ def start_recording(rtsp_url, camera_name, segment_duration="00:01:00"):
         "-i",
         rtsp_url,
         "-t",
-        segment_duration,
+        camera.segment_duration,
         "-vcodec",
         "copy",
         "-acodec",
@@ -182,47 +147,31 @@ def start_recording(rtsp_url, camera_name, segment_duration="00:01:00"):
     return output_path
 
 
-def start_monitoring(camera: dict):
-    ip = camera.get("ip")
-    user = camera.get("user")
-    passw = camera.get("passw")
-    name = camera.get("name", ip)
-    rtsp = f"rtsp://{user}:{passw}@{ip}/stream"
+def start_monitoring(camera: camera_model.Camera):
+    rtsp = f"rtsp://{camera.user}:{camera.passw}@{camera.ip}/stream"
 
-    filename = start_recording(rtsp, name, camera.get("segment_duration", "00:01:00"))
+    filename = start_recording(rtsp, camera)
 
     return filename
 
 
-def on_monitoring_done(filename: str, camera_id: int, camera_name: str):
-    camera_model.put_upload_queue(
-        filename=filename,
-        camera_id=camera_id,
-        camera_name=camera_name,
-        to_compress=False,
-        to_exclude=True,
-    )
-
-
-def start(camera_id: int):
-    camera_data = camera_model.get_camera_data(camera_id)
-    if camera_data is None:
-        return
-
-    filename = start_monitoring(camera_data)
-    on_monitoring_done(filename, camera_id, camera_data["name"])
+def start(camera: camera_model.Camera):
+    filename = start_monitoring(camera)
+    upload_queue = camera_model.UploadQueue(filename=filename, camera_id=camera.wid)
+    upload_queue.put()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog="Record Camera", add_help=False)
     parser.add_argument("--camera", help="camera ID", type=int, required=True)
-    camera = parser.parse_args().camera
+    camera_id = parser.parse_args().camera
+    camera = camera_model.get_camera_data(camera_id)
 
     try:
-        camera_model.set_status(camera_id=camera, status=True)
+        camera.set_status(True)
         start(camera)
     except Exception as err:
         print(err)
 
-    camera_model.set_status(camera_id=camera, status=False)
+    camera.set_status(False)
     exit()
