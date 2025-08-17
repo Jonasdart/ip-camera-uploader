@@ -29,20 +29,17 @@ def upload_video(
         logging.warning("Video nao encontrado")
         return
 
-    date_path_prefix = list(Path(video_path).parts)[-2]
     camera_remote_folder_id = create_camera_path(camera_name)
 
     camera_data = camera_model.get_camera_data(camera_id)
     camera_data.set_uri(camera_remote_folder_id)
-
-    date_remote_folder_id = create_date_path(camera_remote_folder_id, date_path_prefix)
 
     file_to_upload = video_path
     if to_compress:
         logging.debug(f"Comprimindo {video_path}...")
         file_to_upload = compress_video(video_path)
 
-    upload_file(file_to_upload, date_remote_folder_id)
+    upload_file(file_to_upload, camera_remote_folder_id)
 
     if to_exclude:
         exclude_video_files(video_path, suffix_to_exclude)
@@ -123,7 +120,7 @@ def start_recording(rtsp_url: str, camera: camera_model.Camera):
     output_dir = f"{base_dir}/{camera.normalized_name()}/{now.date().isoformat()}"
     os.makedirs(output_dir, exist_ok=True)
 
-    filename = f"{camera.normalized_name()}_{now.isoformat(timespec='seconds')}.mp4"
+    filename = f"{camera.normalized_name()}_{now.strftime('%H:%m')}.mp4"
     output_path = os.path.join(output_dir, filename)
 
     logging.info(f"🎥 Gravando: {filename}")
