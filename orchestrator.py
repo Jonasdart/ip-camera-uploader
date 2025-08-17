@@ -43,7 +43,10 @@ def __up_base_container(name: str, entrypoint: str) -> Container:
         volumes_from=[main_container_name] if use_docker_env else None,
         volumes=volumes if not use_docker_env else None,
         detach=True,
-        environment={"GDRIVE_BASE_FOLDER_ID": os.environ["GDRIVE_BASE_FOLDER_ID"]},
+        environment={
+            "GDRIVE_BASE_FOLDER_ID": os.environ["GDRIVE_BASE_FOLDER_ID"],
+            "PYTHONUNBUFFERED": 1,
+        },
         restart_policy={"Name": "always"},
         name=name,
         labels={"ipcam": "managed"},
