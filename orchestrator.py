@@ -103,11 +103,7 @@ if __name__ == "__main__":
     logging.info("Provisioning queue videos uploader")
     containers.append(provisione_uploader())
 
-    logging.info("Provisioning local videos cleanup")
-    containers.append(provisione_cleanup())
-
     logging.info("Starting cameras monitoring")
-
     cameras_list = camera_model.list_cameras()
     for cam in cameras_list:
         containers.append(start_monitoring(cam.wid))
