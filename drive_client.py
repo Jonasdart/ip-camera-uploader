@@ -93,12 +93,10 @@ def upload_file(filepath, folder_id):
     return file.get("id")
 
 
-def get_video_url(filename, date_path, camera_uri) -> Union[str, None]:
+def get_video_url(filename, camera_uri) -> Union[str, None]:
     service = authenticate()
 
-    print(filename, date_path, camera_uri, "To na linha 97 drive_client")
-    subfolder_id = create_date_path(camera_uri, date_path)
-    query = f"name = '{filename}' and '{subfolder_id}' in parents and trashed = false"
+    query = f"name = '{filename}' and '{camera_uri}' in parents and trashed = false"
 
     response = service.files().list(q=query, fields="files(id, name)").execute()
     folders = response.get("files", [])

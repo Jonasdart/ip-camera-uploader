@@ -84,51 +84,35 @@ if page == "gravacoes" and camera_name:
     camera_path = os.path.join(base_dir, normalize_name(camera_name))
 
     if os.path.exists(camera_path):
-        dates = sorted([f for f in os.listdir(camera_path)])
+        records = sorted([f for f in os.listdir(camera_path) if f.endswith(".jpg")])
+        rows = [st.columns(3, border=True) for _ in range(math.ceil(len(records) / 3))]
 
-        if dates:
-            for subpath in dates:
-                records = sorted(
-                    [f for f in os.listdir(os.path.join(camera_path, subpath))]
+        index = 0
+        for row in rows:
+            for col in row:
+                if index >= len(records):
+                    break
+                thumb_path = os.path.join(camera_path, records[index])
+
+                col.image(thumb_path, caption=records[index])
+                video_filename = os.path.split(records[index])[-1].replace(
+                    ".jpg", ".mp4"
                 )
-                records = [record for record in records if record.endswith(".jpg")]
-
-                with st.expander(f"🕒 {subpath} - {len(records)} Gravações"):
-                    rows = [
-                        st.columns(3, border=True)
-                        for _ in range(math.ceil(len(records) / 3))
-                    ]
-
-                    index = 0
-                    for row in rows:
-                        for col in row:
-                            if index >= len(records):
-                                break
-                            thumb_path = os.path.join(
-                                camera_path, subpath, records[index]
-                            )
-
-                            col.image(thumb_path, caption=records[index])
-                            video_filename = os.path.split(records[index])[-1].replace(
-                                ".jpg", ".mp4"
-                            )
-                            video_url = get_video_url(
-                                video_filename,
-                                subpath,
-                                camera_data.uri,
-                            )
-                            print(video_url)
-                            if video_url:
-                                col.link_button(
-                                    "Link do drive",
-                                    video_url,
-                                    use_container_width=True,
-                                    type="primary",
-                                    icon="▶️",
-                                )
-                            else:
-                                col.warning("Video não encontrado no drive!")
-                            index += 1
+                video_url = get_video_url(
+                    video_filename,
+                    camera_data.uri,
+                )
+                if video_url:
+                    col.link_button(
+                        "Link do drive",
+                        video_url,
+                        use_container_width=True,
+                        type="primary",
+                        icon="▶️",
+                    )
+                else:
+                    col.warning("Video não encontrado no drive!")
+                index += 1
     else:
         st.info("Nenhuma gravação encontrada localmente.")
 

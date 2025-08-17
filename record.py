@@ -117,10 +117,10 @@ def generate_thumbnail(video_path):
 def start_recording(rtsp_url: str, camera: camera_model.Camera):
     now = datetime.datetime.now()
 
-    output_dir = f"{base_dir}/{camera.normalized_name()}/{now.date().isoformat()}"
+    output_dir = f"{base_dir}/{camera.normalized_name()}"
     os.makedirs(output_dir, exist_ok=True)
 
-    filename = f"{camera.normalized_name()}_{now.strftime('%H:%m')}.mp4"
+    filename = f"{camera.normalized_name()}_{now.strftime('%H:%M')}.mp4"
     output_path = os.path.join(output_dir, filename)
 
     logging.info(f"🎥 Gravando: {filename}")
@@ -140,6 +140,7 @@ def start_recording(rtsp_url: str, camera: camera_model.Camera):
         "aac",
         "-strict",
         "-2",
+        "-y",
         output_path,
     ]
     subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
