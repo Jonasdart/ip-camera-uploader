@@ -1,13 +1,20 @@
+import logging
+import os
 import camera_model
 from record import upload_video, generate_thumbnail
 
+logging.basicConfig(
+    level=os.environ.get("LOG_LEVEL", logging.INFO),
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 
 def main():
     for file_to_upload in camera_model.get_upload_queue():
         try:
             generate_thumbnail(file_to_upload.filename)
         except Exception as err:
-            print(err)
+            logging.error(err)
             
         camera_data = camera_model.get_camera_data(file_to_upload.camera_id)
 
@@ -21,7 +28,7 @@ def main():
                 suffix_to_exclude=["_processed_.mp4", "_compressed_.mp4"],
             )
         except Exception as err:
-            print(err)
+            logging.error(err)
             file_to_upload.put()
         
 

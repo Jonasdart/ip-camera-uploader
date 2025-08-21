@@ -12,7 +12,11 @@ import logging
 
 docker_client = docker.from_env()
 local_path = os.path.abspath(".")
-logger = logging.basicConfig(level=os.environ.get("LOG_LEVEL", logging.INFO))
+logging.basicConfig(
+    level=os.environ.get("LOG_LEVEL", logging.INFO),
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 use_docker_env = os.environ.get("DOCKER_ENV", "False") == "True"
 BASE_CONTAINER_NAME = "ipcam-app"
 main_container_name = BASE_CONTAINER_NAME + "-orchestrator"

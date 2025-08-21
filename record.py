@@ -16,6 +16,12 @@ base_dir = "shared/recs"
 upload_queue = Queue()
 camera = None
 
+logging.basicConfig(
+    level=os.environ.get("LOG_LEVEL", logging.INFO),
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+
 
 def upload_video(
     video_path: str,

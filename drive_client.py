@@ -1,3 +1,4 @@
+import logging
 import os
 from datetime import date
 from functools import lru_cache
@@ -10,6 +11,12 @@ from google.oauth2.credentials import Credentials
 from typing import Union
 
 from utils import retry
+
+logging.basicConfig(
+    level=os.environ.get("LOG_LEVEL", logging.INFO),
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 
 # Caminho para seu JSON da conta de serviço
 CREDENTIALS_FILE = "shared/client_secrets.json"
@@ -60,7 +67,7 @@ def __get_or_create_subfolder(parent_folder_id: str, subfolder_name: str) -> str
             "parents": [parent_folder_id],
         }
         folder = service.files().create(body=metadata, fields="id").execute()
-        print(f"Criada pasta: {subfolder_name}")
+        logging.debug(f"Criada pasta: {subfolder_name}")
         return folder["id"]
 
 
@@ -81,16 +88,33 @@ def upload_file(filepath, folder_id):
     service = authenticate()
 
     filename = os.path.split(filepath)[-1]
-    file_metadata = {"name": filename, "parents": [folder_id]}
     media = MediaFileUpload(filepath, resumable=True)
-    file = (
-        service.files()
-        .create(body=file_metadata, media_body=media, fields="id")
-        .execute()
-    )
-    print(f'Upload concluído: {filename} (ID: {file.get("id")})')
 
-    return file.get("id")
+    # Verifica se já existe arquivo com mesmo nome na pasta
+    query = f"'{folder_id}' in parents and name = '{filename}' and trashed = false"
+    results = service.files().list(q=query, fields="files(id, name)").execute()
+    items = results.get("files", [])
+
+    if items:
+        # Se já existe, pega o primeiro e faz update (overwrite)
+        file_id = items[0]["id"]
+        updated_file = (
+            service.files()
+            .update(fileId=file_id, media_body=media)
+            .execute()
+        )
+        logging.debug(f"Arquivo atualizado: {filename} (ID: {updated_file.get('id')})")
+        return updated_file.get("id")
+    else:
+        # Se não existe, cria novo
+        file_metadata = {"name": filename, "parents": [folder_id]}
+        new_file = (
+            service.files()
+            .create(body=file_metadata, media_body=media, fields="id")
+            .execute()
+        )
+        logging.debug(f"Upload concluído: {filename} (ID: {new_file.get('id')})")
+        return new_file.get("id")
 
 
 def get_video_url(filename, camera_uri) -> Union[str, None]:
